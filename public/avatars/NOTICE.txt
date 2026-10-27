@@ -1,0 +1,6 @@
+Avatar illustrations in this folder (1.png – 14.png) are from Radian UI resources:
+https://radianui.com/resources/avatar
+https://github.com/Radian-os/radian-resources (packages/uncompressed-avatars, v1.0.2)
+
+The repository states: "All assets in this repository are licensed under the MIT License unless otherwise specified."
+Images were resized to 160×160 for this prototype.
