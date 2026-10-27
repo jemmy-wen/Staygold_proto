@@ -1,10 +1,10 @@
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { CheckCircle2, CircleAlert, Download, FileSpreadsheet, Receipt, Users } from "lucide-react";
+import { CheckCircle2, CircleAlert, Download, FileSpreadsheet, Plus, Receipt, Users } from "lucide-react";
 import { useStore } from "../lib/store";
 import type { Case, Period } from "../lib/types";
-import { TODAY, openParam, agingBucket, cn, contractTotal, fmtDate, money, periodState, triggerLabel, withTax } from "../lib/utils";
-import { Avatar, Badge, Button, Checkbox, Empty, Modal, PageHeader, SearchInput, Segmented, StatGroup, Tabs, ease, td, th } from "../components/ui";
+import { TODAY, openParam, agingBucket, cn, contractTotal, fmtDate, money, periodState, triggerLabel, uid, withTax } from "../lib/utils";
+import { Avatar, Badge, Button, Checkbox, Empty, Field, Input, Modal, PageHeader, SearchInput, Segmented, Select, StatGroup, Tabs, ease, td, th } from "../components/ui";
 import { InvoiceModal, InvoicePill, PayPill, savePeriodChanges } from "../components/finance";
 import { GridCell, useGridDraft, type Change, type Grid } from "../components/grid";
 import { FilterChips, FilterMenu, Toolbar, pass, useFacets, type Facet } from "../components/filters";
@@ -132,6 +132,7 @@ function BillingTable({ rows, grid }: { rows: Row[]; grid: Grid }) {
   const s = useStore();
   const f = useFacets();
   const [q, setQ] = useState("");
+  const [adding, setAdding] = useState(false);
   const can = s.perms.financeRecord;
   const payOf = (r: Row) => (r.st.pay === "待收款" && r.st.overdue > s.settings.overdueDays ? "逾期" : r.st.pay);
   const trig = (r: Row) => (r.p.trigger === "開課" ? "第一堂課開課當月" : r.p.trigger === "取證" ? "取證後" : "自訂日期");
@@ -157,9 +158,17 @@ function BillingTable({ rows, grid }: { rows: Row[]; grid: Grid }) {
       <Toolbar
         search={<SearchInput value={q} onChange={setQ} placeholder="搜尋客戶、案件、發票號碼" className="w-72" />}
         filter={<FilterMenu facets={facets} f={f} />}
+        right={
+          (s.perms.financeRecord || s.perms.casesEdit) && (
+            <Button variant="outline" icon={<Plus className="size-4" />} onClick={() => setAdding(true)}>
+              新增請款
+            </Button>
+          )
+        }
         count={`${list.length} 筆`}
       />
       <FilterChips facets={facets} f={f} />
+      {adding && <NewPeriodModal onClose={() => setAdding(false)} />}
       <div className="overflow-x-auto rounded-xl border border-ink-200 bg-white shadow-card">
         <table className="w-full min-w-[1420px] table-fixed border-separate border-spacing-0">
           <colgroup>
@@ -350,6 +359,94 @@ function Payables() {
       </table>
     </div>
     </div>
+  );
+}
+
+// 新增請款：選擇案件後在該案件的分期最後新增一期，與案件財務分頁的「新增一期」為同一筆資料
+function NewPeriodModal({ onClose }: { onClose: () => void }) {
+  const s = useStore();
+  const [caseId, setCaseId] = useState("");
+  const [amount, setAmount] = useState("");
+  const [trigger, setTrigger] = useState<Period["trigger"]>("自訂");
+  const [customDate, setCustomDate] = useState(TODAY);
+  const c = s.cases.find((x) => x.id === caseId);
+  const total = c ? contractTotal(c) : 0;
+  const n = Number(amount) || 0;
+  const pct = total ? Math.round((n / total) * 100) : 0;
+  const planned = c ? c.periods.reduce((acc, p) => acc + p.amount, 0) : 0;
+  const valid = !!c && n > 0 && (trigger !== "自訂" || !!customDate);
+
+  const save = () => {
+    if (!c) return;
+    const next: Period = { id: uid("p"), n: c.periods.length + 1, pct, amount: n, trigger, customDate: trigger === "自訂" ? customDate : undefined };
+    s.updateCase(c.id, (x) => ({ ...x, periods: [...x.periods, next] }));
+    s.log({ module: "財務", caseId: c.id, target: `第 ${next.n} 期`, action: "新增請款", after: `${money(n)}（未稅）・${triggerLabel(next)}` });
+    s.toast(`已新增 ${c.id} 第 ${next.n} 期`);
+    onClose();
+  };
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      width={560}
+      title="新增請款"
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>
+            取消
+          </Button>
+          <Button variant="dark" disabled={!valid} onClick={save}>
+            新增
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <Field label="案件" required>
+          <Select
+            value={caseId}
+            onChange={setCaseId}
+            placeholder="搜尋案件編號或客戶"
+            options={s.visibleCases.map((x) => ({ value: x.id, label: x.id, hint: s.customerOf(x).short }))}
+          />
+        </Field>
+        {c && (
+          <div className="rounded-xl border border-ink-200 bg-ink-25 px-4 py-3 text-[12.5px]">
+            <div className="flex items-center justify-between">
+              <span className="text-ink-500">合約總額（未稅）</span>
+              <span className="font-medium tabular-nums text-ink-900">{money(total)}</span>
+            </div>
+            <div className="mt-1 flex items-center justify-between">
+              <span className="text-ink-500">已設定 {c.periods.length} 期</span>
+              <span className="tabular-nums text-ink-700">{money(planned)}</span>
+            </div>
+          </div>
+        )}
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="金額（未稅）" required>
+            <Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" className="tabular-nums" />
+          </Field>
+          <Field label="含稅">
+            <Input value={n ? `${money(withTax(n))}${total ? `・${pct}%` : ""}` : ""} disabled />
+          </Field>
+        </div>
+        <Field label="開票時機">
+          <div className="flex items-center gap-2">
+            <Segmented
+              value={trigger}
+              onChange={setTrigger}
+              items={[
+                { value: "開課", label: "第一堂課開課當月" },
+                { value: "取證", label: "取證後" },
+                { value: "自訂", label: "自訂日期" },
+              ]}
+            />
+            {trigger === "自訂" && <Input type="date" value={customDate} onChange={(e) => setCustomDate(e.target.value)} className="w-40" />}
+          </div>
+        </Field>
+      </div>
+    </Modal>
   );
 }
 
