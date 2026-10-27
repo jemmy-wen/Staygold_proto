@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUpRight, Lock, MousePointerClick, RotateCcw } from "lucide-react";
-import { GROUPS, NOTE_LABEL, type Note, type Screen } from "./screens";
+import { ArrowUpRight, Lock, MousePointerClick, RotateCcw, Target } from "lucide-react";
+import { GROUPS, NOTE_LABEL, NOTIFS, type Note, type Screen, type Table } from "./screens";
 import { BrandMark } from "../components/brand";
 import { cn } from "../lib/utils";
 
@@ -90,7 +90,14 @@ function ScreenSection({ s, index }: { s: Screen; index: string }) {
           ))}
         </div>
       </div>
-      <p className="mt-2 max-w-3xl text-[13.5px] leading-relaxed text-ink-600">{s.summary}</p>
+      <div className="mt-3 flex max-w-3xl items-start gap-2.5 rounded-xl border border-brand-200 bg-brand-50/60 px-4 py-3">
+        <Target className="mt-0.5 size-4 shrink-0 text-brand-600" />
+        <div>
+          <p className="text-[11.5px] font-semibold uppercase tracking-wider text-brand-700">使用者目標</p>
+          <p className="mt-0.5 text-[13.5px] leading-relaxed text-ink-800">{s.goal}</p>
+        </div>
+      </div>
+      <p className="mt-3 max-w-3xl text-[13.5px] leading-relaxed text-ink-600">{s.summary}</p>
 
       <div className="mt-5 grid grid-cols-[minmax(0,1.55fr)_minmax(320px,1fr)] gap-8">
         <div className="min-w-0">
@@ -153,7 +160,55 @@ function ScreenSection({ s, index }: { s: Screen; index: string }) {
           )}
         </div>
       </div>
+      {s.tables?.map((t) => <RuleTable key={t.title} t={t} />)}
+      {s.notifs && <NotifTable types={s.notifs} />}
     </section>
+  );
+}
+
+function RuleTable({ t }: { t: Table }) {
+  return (
+    <div className="mt-8">
+      <p className="text-[11.5px] font-semibold uppercase tracking-wider text-ink-400">{t.title}</p>
+      <div className="mt-2 overflow-hidden rounded-xl border border-ink-200 bg-white shadow-card">
+        <table className="w-full border-separate border-spacing-0 text-[12.5px]">
+          <thead>
+            <tr className="bg-ink-25 text-left text-[12px] text-ink-600">
+              {t.head.map((h) => (
+                <th key={h} className="border-b border-r border-ink-200 px-3.5 py-2.5 font-semibold last:border-r-0">
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {t.rows.map((r) => (
+              <tr key={r[0]}>
+                {r.map((c, i) => (
+                  <td key={i} className={cn("border-b border-r border-ink-100 px-3.5 py-2.5 align-top leading-relaxed last:border-r-0", i === 0 ? "whitespace-nowrap font-medium text-ink-900" : i === 1 && r.length > 2 ? "whitespace-nowrap text-ink-700" : "text-ink-700")}>
+                    {c}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// 此畫面相關的通知（PRD 3.11）；"*" 表示全部 15 種
+function NotifTable({ types }: { types: string[] }) {
+  const list = types.includes("*") ? NOTIFS : NOTIFS.filter((n) => types.includes(n.type));
+  return (
+    <RuleTable
+      t={{
+        title: types.includes("*") ? "通知一覽（PRD 3.11，共 15 種）" : "相關通知（PRD 3.11）",
+        head: ["通知", "分類", "出現時機", "通知對象", "管道", "消失時機"],
+        rows: list.map((n) => [n.type, n.group, n.when, n.to, n.channel, n.done]),
+      }}
+    />
   );
 }
 
@@ -246,7 +301,7 @@ export function SpecPage() {
           <p className="text-[12px] font-medium text-brand-700">PRD v1.0 對照・High-fidelity Prototype</p>
           <h1 className="mt-2 text-[32px] font-semibold tracking-tight">畫面規格</h1>
           <p className="mt-3 text-[14px] leading-relaxed text-ink-600">
-            列出系統的每一個畫面，左側是可直接操作的 prototype，右側是該畫面的功能、User Flow，以及對應的 PRD v1.0 節次與原文。各畫面的操作互不影響，按「重設」可回到初始狀態。
+            列出系統的每一個畫面：開頭是該畫面的使用者目標，左側是可直接操作的 prototype，右側是功能、User Flow、對應的 PRD v1.0 節次與原文；涉及流程的畫面另附狀態規則與相關通知。各畫面的操作互不影響，按「重設」可回到初始狀態。
           </p>
           <div className="mt-5 flex flex-wrap gap-4 text-[12.5px] text-ink-600">
             <span>
