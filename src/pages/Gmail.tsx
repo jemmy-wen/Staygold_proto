@@ -31,6 +31,7 @@ import type { Case, Customer, EmailThread } from "../lib/types";
 import { casePrefix, cn, fmtShort, nextCaseId, nowStamp, uid } from "../lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
 import { Avatar, Button, Field, Input, Popover, Select, StatusPill, ease } from "../components/ui";
+import { BrandMark } from "../components/brand";
 
 // Gmail 擴充功能：依 Gmail 內嵌擴充功能的常見做法放三個位置
 // 1. 搜尋列旁的擴充功能圖示（待確認數＋快速選單）  2. 信件列表與信件標題旁的關聯標籤  3. 右側擴充功能欄的面板（點右側圖示列開合）
@@ -54,7 +55,7 @@ export function GmailMock({ threadId }: { threadId?: string }) {
     <div className="flex h-screen min-w-[1280px] flex-col bg-[#F6F8FC] font-[Roboto,'Noto_Sans_TC',sans-serif] text-[#1f1f1f]">
       <div className="flex h-10 shrink-0 items-end gap-1 bg-[#DEE3EA] px-2 pt-1.5 text-[12.5px]">
         <button onClick={() => s.go({ page: "dashboard" })} className="flex h-full w-56 items-center gap-2 rounded-t-lg px-3 text-[#3c4043] transition-colors hover:bg-white/50">
-          <span className="grid size-4 place-items-center rounded bg-ink-900 text-[9px] font-bold text-white">恆</span>
+          <BrandMark size={16} />
           <span className="truncate">恆永顧問內部系統</span>
         </button>
         <div className="flex h-full w-56 items-center gap-2 rounded-t-lg bg-[#F6F8FC] px-3 text-[#1f1f1f]">
@@ -155,7 +156,7 @@ export function GmailMock({ threadId }: { threadId?: string }) {
               className="mr-1 flex shrink-0 flex-col overflow-hidden rounded-2xl bg-white"
             >
               <div className="flex h-14 shrink-0 items-center gap-2 border-b border-[#eceff1] pl-4 pr-2">
-                <span className="grid size-6 place-items-center rounded-md bg-brand-600 text-[11px] font-bold text-white">恆</span>
+                <BrandMark size={24} />
                 <p className="flex-1 text-[14px] font-medium text-[#1f1f1f]">恆永顧問</p>
                 <button onClick={() => s.go({ page: "dashboard" })} className="grid size-8 place-items-center rounded-full text-[#444] hover:bg-black/5" title="在系統開啟">
                   <ArrowUpRight className="size-4" />
@@ -182,7 +183,7 @@ export function GmailMock({ threadId }: { threadId?: string }) {
           ))}
           <span className="my-1 h-px w-5 bg-[#c4c7c5]" />
           <button onClick={() => setPanel((v) => !v)} className={cn("relative grid size-10 place-items-center rounded-full transition-colors", panel ? "bg-[#D3E3FD]" : "hover:bg-black/5")} title="恆永顧問">
-            <span className="grid size-6 place-items-center rounded-md bg-brand-600 text-[11px] font-bold text-white">恆</span>
+            <BrandMark size={24} />
             {pending.length > 0 && !panel && <span className="absolute right-1 top-1 size-2 rounded-full bg-rose-500 ring-2 ring-[#F6F8FC]" />}
           </button>
           <span className="grid size-10 place-items-center rounded-full text-[#444] hover:bg-black/5">
@@ -202,7 +203,7 @@ function QuickMenu({ pending, onOpen }: { pending: EmailThread[]; onOpen: (id: s
       width={320}
       trigger={({ toggle, open }) => (
         <button onClick={toggle} className={cn("relative flex h-10 items-center gap-2 rounded-full px-3 text-[13px] text-[#444] transition-colors", open ? "bg-[#D3E3FD]" : "hover:bg-black/5")} title="恆永顧問">
-          <span className="grid size-6 place-items-center rounded-md bg-brand-600 text-[11px] font-bold text-white">恆</span>
+          <BrandMark size={24} />
           {pending.length > 0 && <span className="rounded-full bg-rose-500 px-1.5 text-[11px] font-medium leading-[18px] text-white">{pending.length}</span>}
         </button>
       )}
@@ -256,7 +257,7 @@ function ThreadView({ t, onBack, onPanel }: { t: EmailThread; onBack: () => void
         </h2>
         {t.state === "suggested" && primary && (
           <div className="mt-3 flex items-center gap-3 rounded-xl border border-[#e3e3e3] bg-[#F8FAFD] px-4 py-2.5 text-[13px]">
-            <span className="grid size-5 shrink-0 place-items-center rounded bg-brand-600 text-[9px] font-bold text-white">恆</span>
+            <BrandMark size={20} />
             <span className="min-w-0 flex-1 truncate text-[#1f1f1f]">
               建議歸檔至 <span className="font-mono font-medium">{primary}</span>
             </span>

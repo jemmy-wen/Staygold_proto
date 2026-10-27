@@ -1,14 +1,10 @@
 import { cn } from "../lib/utils";
 
-// 恆永 Stay Gold 標誌。取得正式 logo 檔後，替換這個元件的內容即可全站套用
-export function BrandMark({ size = 36, tone = "dark", className }: { size?: number; tone?: "dark" | "light"; className?: string }) {
+// 恆永 Stay Gold 標誌：logo-mark.png 為依圖形實際範圍裁切並置中的版本（原檔 logo.png 四周留白不均）
+export function BrandMark({ size = 36, className }: { size?: number; tone?: "dark" | "light"; className?: string }) {
   return (
-    <span
-      className={cn("grid shrink-0 place-items-center rounded-[28%] font-bold", tone === "dark" ? "bg-ink-900 text-white" : "bg-white text-ink-900", className)}
-      style={{ width: size, height: size, fontSize: size * 0.44 }}
-      aria-label="恆永 Stay Gold"
-    >
-      恆
+    <span className={cn("grid shrink-0 place-items-center overflow-hidden rounded-[24%] border border-ink-200 bg-white", className)} style={{ width: size, height: size }}>
+      <img src="/logo-mark.png" alt="恆永 Stay Gold" className="size-full object-contain" />
     </span>
   );
 }

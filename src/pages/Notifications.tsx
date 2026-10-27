@@ -26,6 +26,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Badge, Button, Empty, Modal, PageHeader, Segmented, Tabs, ease } from "../components/ui";
 import { openNotif } from "../components/layout";
 import { cn, openParam } from "../lib/utils";
+import { BrandMark } from "../components/brand";
 
 const ICONS: Record<NotifType, React.ReactNode> = {
   "待審核（內容）": <FileClock />,
@@ -200,7 +201,7 @@ function EmailPreview({ n, onClose }: { n: Notif | null; onClose: () => void }) 
         </div>
         <div className="px-6 py-6">
           <div className="flex items-center gap-2">
-            <span className="grid size-7 place-items-center rounded-md bg-ink-900 text-[12px] font-bold text-white">恆</span>
+            <BrandMark size={28} />
             <span className="text-[13px] font-semibold">恆永顧問</span>
           </div>
           <p className="mt-5 text-[16px] font-semibold text-ink-900">{n.title}</p>

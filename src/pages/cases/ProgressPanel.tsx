@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { CalendarCheck, ChevronDown, CopyPlus, X } from "lucide-react";
+import { ArrowRight, CalendarCheck, ChevronDown, CopyPlus, Mail, X } from "lucide-react";
 import { useStore } from "../../lib/store";
 import { createRenewal } from "../../lib/caseOps";
 import { milestoneCandidates } from "../../lib/rules";
-import type { Case } from "../../lib/types";
+import type { Case, CaseStatus } from "../../lib/types";
 import { STATUSES, STATUS_PHASE, TODAY, cn, daysSince, daysUntil, fmtDate, fmtShort, statusSuggestion } from "../../lib/utils";
-import { useStatusChange } from "../../components/StatusChange";
-import { Button, Field, Input, Modal, Popover, ease, statusStroke } from "../../components/ui";
+import { RECIPIENT_LABEL } from "../../lib/rules";
+import { Button, Field, Input, Modal, OptionList, Popover, StatusIcon, ease, statusStroke } from "../../components/ui";
 
 type MKey = "visit" | "proposalSent" | "signed" | "courseStart" | "certified" | "certExpiry";
 const LABEL: Record<MKey, string> = { visit: "拜訪日", proposalSent: "企劃書送出日", signed: "回簽日", courseStart: "開課日", certified: "取證日", certExpiry: "證書到期日" };
@@ -113,7 +113,7 @@ export function ProgressPanel({ c, goReview }: { c: Case; goReview: () => void }
   const m = c.milestones;
   const ms = useMilestone(c);
   const can = s.perms.casesEdit;
-  const change = useStatusChange();
+  const [target, setTarget] = useState<CaseStatus | null>(null);
   const suggestion = statusSuggestion(c, s.settings);
   const cand = milestoneCandidates(c, s.customerOf(c), s.events);
   const color = "#32716A";
@@ -200,7 +200,7 @@ export function ProgressPanel({ c, goReview }: { c: Case; goReview: () => void }
               </div>
               <button
                 disabled={!can || i === idx}
-                onClick={() => change.request(c.id, x)}
+                onClick={() => setTarget(x)}
                 className={cn("mt-1 block max-w-full truncate rounded px-1 py-0.5 -mx-1 text-left text-[11.5px] transition-colors enabled:hover:bg-ink-100 disabled:cursor-default", i === idx ? "font-semibold text-ink-900" : i < idx ? "text-ink-500" : "text-ink-300 enabled:hover:text-ink-700")}
               >
                 {x}
@@ -219,18 +219,18 @@ export function ProgressPanel({ c, goReview }: { c: Case; goReview: () => void }
       {suggestion && can && (
         <div className="flex items-center gap-3 border-t border-ink-100 bg-brand-50/40 px-5 py-2 text-[12.5px]">
           <span className="flex-1 text-ink-700">依登記資料：{suggestion}</span>
-          <Button size="sm" variant="ghost" onClick={() => change.request(c.id, suggestion)}>
+          <Button size="sm" variant="ghost" onClick={() => setTarget(suggestion)}>
             採用
           </Button>
         </div>
       )}
-      <CurrentAction c={c} goReview={goReview} collapsed={!open} idx={idx} toggle={toggle} />
-      {change.modal}
+      <CurrentAction c={c} goReview={goReview} collapsed={!open} idx={idx} toggle={toggle} onJump={setTarget} />
+      {target && <JumpModal c={c} target={target} onClose={() => setTarget(null)} />}
     </div>
   );
 }
 
-function CurrentAction({ c, goReview, collapsed, idx, toggle }: { c: Case; goReview: () => void; collapsed: boolean; idx: number; toggle: React.ReactNode }) {
+function CurrentAction({ c, goReview, collapsed, idx, toggle, onJump }: { c: Case; goReview: () => void; collapsed: boolean; idx: number; toggle: React.ReactNode; onJump: (st: CaseStatus) => void }) {
   const s = useStore();
   const st = s.statusOf(c);
   const m = c.milestones;
@@ -319,6 +319,7 @@ function CurrentAction({ c, goReview, collapsed, idx, toggle }: { c: Case; goRev
         )}
         <p className="flex-1 text-[13px] text-ink-700">{text}</p>
         {action}
+        {can && <JumpControls st={st} onJump={onJump} />}
         {toggle}
         <CertModal open={certOpen} onClose={() => setCertOpen(false)} c={c} onSave={(cert, exp) => {
           ms.set("certified", cert);
@@ -367,3 +368,158 @@ function CertModal({ open, onClose, c, onSave }: { open: boolean; onClose: () =>
   );
 }
 
+
+// 進入各狀態時通常會一併登記的日期；跳到某狀態時，跳過與到達的階段若沒登記，提醒可以順手補上
+const STATUS_FIELDS: Partial<Record<CaseStatus, { key: "visit" | "proposalSent" | "signed" | "courseStart" | "audit" | "certified" | "certExpiry"; label: string }[]>> = {
+  已報價待回簽: [{ key: "proposalSent", label: "企劃書送出日" }],
+  已簽約排課中: [{ key: "signed", label: "回簽日" }],
+  輔導中: [{ key: "courseStart", label: "開課日" }],
+  稽核中: [{ key: "audit", label: "稽核日" }],
+  已取證: [{ key: "certified", label: "取證日" }, { key: "certExpiry", label: "證書到期日" }],
+  續證期: [{ key: "certExpiry", label: "證書到期日" }],
+};
+
+// 目前狀態列右側：下一步，或改為任一狀態
+function JumpControls({ st, onJump }: { st: CaseStatus; onJump: (st: CaseStatus) => void }) {
+  const next = STATUSES[STATUSES.indexOf(st) + 1];
+  return (
+    <div className="flex shrink-0 items-center">
+      {next && (
+        <Button size="sm" variant="outline" className="rounded-r-none" icon={<ArrowRight className="size-3.5" />} onClick={() => onJump(next)}>
+          下一步：{next}
+        </Button>
+      )}
+      <Popover
+        align="right"
+        width={220}
+        scroll={false}
+        trigger={({ toggle }) => (
+          <Button size="sm" variant="outline" className={cn(next && "-ml-px rounded-l-none px-2")} onClick={toggle} aria-label="改為其他狀態">
+            {!next && "改為其他狀態"}
+            <ChevronDown className="size-3.5" />
+          </Button>
+        )}
+      >
+        {(close) => (
+          <OptionList
+            options={STATUSES.map((x) => ({ value: x, label: x }))}
+            selected={[st]}
+            onPick={(x) => {
+              close();
+              if (x !== st) onJump(x as CaseStatus);
+            }}
+          />
+        )}
+      </Popover>
+    </div>
+  );
+}
+
+// 改狀態確認：列出跳過的階段、建議補登的日期與會寄出的 Email；可補登後改，也可不補直接改
+function JumpModal({ c, target, onClose }: { c: Case; target: CaseStatus; onClose: () => void }) {
+  const s = useStore();
+  const ms = useMilestone(c);
+  const from = s.statusOf(c);
+  const i = STATUSES.indexOf(from);
+  const j = STATUSES.indexOf(target);
+  const forward = j > i;
+  const skipped = forward ? STATUSES.slice(i + 1, j) : [];
+  const missing = forward
+    ? STATUSES.slice(i + 1, j + 1)
+        .flatMap((x) => (STATUS_FIELDS[x] ?? []).map((f) => ({ ...f, status: x })))
+        .filter((f, k, arr) => arr.findIndex((y) => y.key === f.key) === k)
+        .filter((f) => (f.key === "audit" ? c.milestones.audits.length === 0 : !c.milestones[f.key]))
+    : [];
+  const [vals, setVals] = useState<Record<string, string>>({});
+  const filled = missing.filter((f) => vals[f.key]);
+  const mails = s.emailImpact(c.id, target);
+  const apply = (withData: boolean) => {
+    if (withData)
+      filled.forEach((f) => {
+        if (f.key === "audit") ms.addAudit(vals[f.key]);
+        else ms.set(f.key, vals[f.key]);
+      });
+    s.setStatus(c.id, target);
+    onClose();
+  };
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      width={520}
+      title={`改為「${target}」`}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>
+            取消
+          </Button>
+          {missing.length > 0 && (
+            <Button onClick={() => apply(false)}>
+              {filled.length ? "不補登，直接改" : "仍要直接改"}
+            </Button>
+          )}
+          <Button variant="dark" disabled={missing.length > 0 && !filled.length} onClick={() => apply(true)}>
+            {missing.length ? "補登並改為此狀態" : mails.length ? "確認並寄出" : "確認"}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-5">
+        <div className="flex flex-wrap items-center gap-2 text-[13px]">
+          <span className="flex items-center gap-1.5 text-ink-500">
+            <StatusIcon status={from} size={13} />
+            {from}
+          </span>
+          <ArrowRight className="size-3.5 text-ink-400" />
+          <span className="flex items-center gap-1.5 font-semibold text-ink-900">
+            <StatusIcon status={target} size={13} />
+            {target}
+          </span>
+        </div>
+        {skipped.length > 0 && (
+          <div>
+            <p className="mb-1.5 text-[12.5px] font-medium text-ink-600">會跳過</p>
+            <div className="flex flex-wrap gap-1.5">
+              {skipped.map((x) => (
+                <span key={x} className="inline-flex h-6 items-center rounded-full border border-ink-200 px-2.5 text-[12px] text-ink-600">
+                  {x}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+        {missing.length > 0 && (
+          <div>
+            <p className="mb-1.5 text-[12.5px] font-medium text-ink-600">尚未登記的日期</p>
+            <div className="divide-y divide-ink-100 rounded-xl border border-ink-200">
+              {missing.map((f) => (
+                <div key={f.key} className="grid grid-cols-[minmax(0,1fr)_160px] items-center gap-3 px-3.5 py-2.5">
+                  <span className="text-[13px] text-ink-800">
+                    {f.label}
+                    <span className="ml-1.5 text-[11.5px] text-ink-400">{f.status}</span>
+                  </span>
+                  <Input type="date" value={vals[f.key] ?? ""} onChange={(e) => setVals({ ...vals, [f.key]: e.target.value })} className="h-8 text-[12.5px]" />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {mails.length > 0 && (
+          <div>
+            <p className="mb-1.5 text-[12.5px] font-medium text-ink-600">會寄出 Email</p>
+            <div className="divide-y divide-ink-100 rounded-xl border border-ink-200">
+              {mails.map((m) => (
+                <div key={m.key} className="flex items-center gap-3 px-3.5 py-2.5 text-[13px]">
+                  <Mail className="size-4 shrink-0 text-ink-400" />
+                  <span className="flex-1 text-ink-900">{m.type}</span>
+                  <span className="text-ink-500">{m.recipients.map((r) => RECIPIENT_LABEL[r]).join("、")}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+}

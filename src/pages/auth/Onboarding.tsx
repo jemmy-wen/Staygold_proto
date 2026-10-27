@@ -5,6 +5,7 @@ import { PERM_GROUPS } from "../../lib/perms";
 import type { Member } from "../../lib/types";
 import { Avatar, Button, Field, Input, Segmented } from "../../components/ui";
 import { cn } from "../../lib/utils";
+import { BrandMark } from "../../components/brand";
 
 const COLORS = ["#32716A", "#3B6FB6", "#7C5CBF", "#C2733D", "#B4536A", "#5E8C3A", "#2F8F9D", "#535C5A"];
 
@@ -27,7 +28,7 @@ export function Onboarding() {
     <div className="flex h-screen min-w-[1280px] flex-col bg-ink-50">
       <header className="flex h-16 items-center justify-between border-b border-ink-200 bg-white px-8">
         <div className="flex items-center gap-2.5">
-          <span className="grid size-8 place-items-center rounded-lg bg-ink-900 text-[14px] font-bold text-white">恆</span>
+          <BrandMark size={32} />
           <span className="text-[14px] font-semibold text-ink-900">{s.settings.workspaceName}</span>
         </div>
         <div className="flex items-center gap-6 text-[13px]">

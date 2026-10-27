@@ -3,6 +3,7 @@ import { ArrowLeft, Check, Mail, UserCircle2 } from "lucide-react";
 import { displayName, useStore } from "../../lib/store";
 import { Avatar, Badge, Button } from "../../components/ui";
 import { AuthFrame, GoogleMark } from "./Login";
+import { BrandMark } from "../../components/brand";
 
 export function InviteAccept() {
   const s = useStore();
@@ -32,7 +33,7 @@ export function InviteAccept() {
     >
       {stage === "landing" ? (
         <div className="w-[420px] animate-rise">
-          <span className="grid size-12 place-items-center rounded-2xl bg-ink-900 text-[20px] font-bold text-white">恆</span>
+          <BrandMark size={48} />
           <h2 className="mt-6 text-[24px] font-semibold tracking-tight text-ink-900">加入「{s.settings.workspaceName}」</h2>
           <p className="mt-2 text-[13.5px] leading-relaxed text-ink-500">
             <span className="font-medium text-ink-800">{displayName(inviter)}</span> 邀請你加入工作空間。
