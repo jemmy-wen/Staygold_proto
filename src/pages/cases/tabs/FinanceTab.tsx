@@ -2,7 +2,7 @@ import { useState } from "react";
 import { CircleAlert, Pencil, Plus, Trash2 } from "lucide-react";
 import { useStore } from "../../../lib/store";
 import type { Case, Period } from "../../../lib/types";
-import { cn, contractTotal, fmtDate, money, periodState, tax, triggerLabel, uid, withTax } from "../../../lib/utils";
+import { cn, contractTotal, dueDateOf, fmtDate, money, periodState, tax, triggerLabel, uid, withTax } from "../../../lib/utils";
 import { Badge, Button, Card, StatGroup } from "../../../components/ui";
 import { InvoicePill, PayPill, savePeriodChanges } from "../../../components/finance";
 import { GridCell, useGridDraft, useLeaveGuard, type Change } from "../../../components/grid";
@@ -13,7 +13,7 @@ export function FinanceTab({ c }: { c: Case }) {
   const total = contractTotal(c);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<Period[]>(c.periods);
-  const rows = c.periods.map((p) => ({ p, st: periodState(c, p) }));
+  const rows = c.periods.map((p) => ({ p, st: periodState(c, p, s.settings.payDays) }));
   const invoiced = rows.filter((r) => r.p.invoiceNo).reduce((n, r) => n + withTax(r.p.amount), 0);
   const paid = rows.filter((r) => r.p.paidDate).reduce((n, r) => n + withTax(r.p.amount), 0);
   const canPlan = s.perms.casesEdit || s.perms.financeRecord;
@@ -50,7 +50,7 @@ export function FinanceTab({ c }: { c: Case }) {
           { label: "合約總額（未稅）", value: money(total), sub: `含稅 ${money(withTax(total))}` },
           { label: "已開票（含稅）", value: money(invoiced), sub: `${rows.filter((r) => r.p.invoiceNo).length}/${rows.length} 期` },
           { label: "已收款（含稅）", value: money(paid), sub: `${rows.filter((r) => r.p.paidDate).length}/${rows.length} 期` },
-          { label: "未收（含稅）", value: money(invoiced - paid), sub: rows.some((r) => r.st.overdue > s.settings.overdueDays) ? <span className="text-rose-600">有逾期款項</span> : "—" },
+          { label: "未收（含稅）", value: money(invoiced - paid), sub: rows.some((r) => r.st.overdue > 0) ? <span className="text-rose-600">有逾期款項</span> : "—" },
         ]}
       />
 
@@ -143,15 +143,15 @@ export function FinanceTab({ c }: { c: Case }) {
           <p className="px-5 py-10 text-center text-[13px] text-ink-400">尚未設定分期</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1180px] table-fixed border-separate border-spacing-0">
+            <table className="w-full min-w-[1300px] table-fixed border-separate border-spacing-0">
               <colgroup>
-                {[130, 150, 130, 120, 90, 110, 100, 140, 120, 130, 120].map((w, i) => (
+                {[130, 150, 130, 120, 90, 110, 100, 140, 120, 120, 130, 120].map((w, i) => (
                   <col key={i} style={{ width: w }} />
                 ))}
               </colgroup>
               <thead>
                 <tr>
-                  {["期數", "開票時機", "通知開票日", "未稅", "稅金", "含稅", "發票狀態", "發票號碼", "開立日期", "請款狀態", "收款日期"].map((h, i) => (
+                  {["期數", "開票時機", "通知開票日", "未稅", "稅金", "含稅", "發票狀態", "發票號碼", "開立日期", "約定付款日", "請款狀態", "收款日期"].map((h, i) => (
                     <th key={h} className={cn("h-10 border-b border-r border-ink-200 bg-ink-25 px-3 text-left text-[12px] font-medium text-ink-500 last:border-r-0", i === 0 && "pl-5", [3, 4, 5].includes(i) && "text-right")}>
                       {h}
                     </th>
@@ -161,8 +161,8 @@ export function FinanceTab({ c }: { c: Case }) {
               <tbody>
                 {rows.map(({ p, st }, r) => {
                   const key = `${c.id}:${p.id}`;
-                  const cell = (field: "notifyDate" | "amount" | "invoiceNo" | "invoiceDate" | "paidDate", col: number, extra: Partial<Parameters<typeof GridCell>[0]> = {}) => {
-                    const orig = String(p[field] ?? "");
+                  const cell = (field: "notifyDate" | "amount" | "invoiceNo" | "invoiceDate" | "dueDate" | "paidDate", col: number, extra: Partial<Parameters<typeof GridCell>[0]> = {}) => {
+                    const orig = String((field === "dueDate" ? dueDateOf(p, s.settings.payDays) : p[field]) ?? "");
                     return <GridCell pos={[r, col]} value={grid.get(key, field, orig)} dirty={grid.dirty(key, field)} editable={can} type="date" format={fmtDate} onChange={(v) => grid.set(key, field, orig, v)} {...extra} />;
                   };
                   const invoiced = !!grid.get(key, "invoiceNo", p.invoiceNo ?? "");
@@ -185,10 +185,11 @@ export function FinanceTab({ c }: { c: Case }) {
                       </td>
                       {cell("invoiceNo", 7, { type: "text", format: undefined, className: "font-mono text-[12.5px]" })}
                       {cell("invoiceDate", 8, { editable: can && invoiced })}
+                      {cell("dueDate", 9, { editable: can && invoiced })}
                       <td className={plain}>
-                        <PayPill v={st.pay} overdue={st.overdue} limit={s.settings.overdueDays} />
+                        <PayPill v={st.pay} overdue={st.overdue} />
                       </td>
-                      {cell("paidDate", 10, { editable: can && invoiced, className: "border-r-0" })}
+                      {cell("paidDate", 11, { editable: can && invoiced, className: "border-r-0" })}
                     </tr>
                   );
                 })}

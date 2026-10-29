@@ -42,13 +42,13 @@ export function computeNotifications(ctx: Ctx): NotifHit[] {
       out.push({ ...base, key: `sess:${c.id}`, type: "堂數不符", group: "案件進度", title: `${label(c)} 行事曆 ${sessions} 堂，合約 ${c.contractSessions} 堂`, desc: "行事曆已排堂數超過合約堂數，若為追加課程請確認是否需補簽或調整請款。", recipients: ["owner"], email: false, done: "堂數一致", tab: "schedule" });
 
     for (const p of c.periods) {
-      const st = periodState(c, p);
+      const st = periodState(c, p, settings.payDays);
       if (st.invoice === "待開立" && p.n === 1 && p.trigger === "開課")
         out.push({ ...base, key: `inv:${c.id}:${p.id}`, type: "發票待開立（第一期）", group: "發票與請款", title: `${label(c)} 第 1 期發票待開立`, desc: m.courseStart ? `第一堂課於 ${fmtDate(m.courseStart)} 開課，本期 ${p.pct}%。` : `案件已進入輔導中，本期 ${p.pct}%。`, recipients: ["finance", "admin"], email: true, done: "登記發票已開立", goto: "finance" });
       else if (st.invoice === "待開立")
         out.push({ ...base, key: `inv:${c.id}:${p.id}`, type: "發票待開立（取證後各期）", group: "發票與請款", title: `${label(c)} 第 ${p.n} 期發票待開立`, desc: p.trigger === "取證" ? `已於 ${fmtDate(m.certified)} 取證，本期 ${p.pct}%。` : `約定開票日 ${fmtDate(p.customDate)}，本期 ${p.pct}%。`, recipients: ["finance", "admin"], email: true, done: "登記發票已開立", goto: "finance" });
-      if (st.pay === "待收款" && st.overdue > settings.overdueDays)
-        out.push({ ...base, key: `due:${c.id}:${p.id}`, type: "收款逾期", group: "發票與請款", title: `${label(c)} 第 ${p.n} 期已開票 ${st.overdue} 天未收款`, desc: `發票 ${p.invoiceNo} 於 ${fmtDate(p.invoiceDate)} 開立。`, recipients: ["finance", "exec"], email: false, done: "登記已收款", goto: "finance" });
+      if (st.pay === "待收款" && st.overdue > 0)
+        out.push({ ...base, key: `due:${c.id}:${p.id}`, type: "收款逾期", group: "發票與請款", title: `${label(c)} 第 ${p.n} 期超過約定付款日 ${st.overdue} 天未收款`, desc: `發票 ${p.invoiceNo} 於 ${fmtDate(p.invoiceDate)} 開立，約定付款日 ${fmtDate(st.due)}。`, recipients: ["finance", "exec"], email: false, done: "登記已收款", goto: "finance" });
     }
 
     if (m.certified && m.certExpiry && !c.noRenew) {

@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { CheckCircle2, CircleAlert, Download, FileSpreadsheet, Plus, Receipt, Users } from "lucide-react";
 import { useStore } from "../lib/store";
 import type { Case, Period } from "../lib/types";
-import { TODAY, openParam, agingBucket, cn, contractTotal, fmtDate, money, periodState, triggerLabel, uid, withTax } from "../lib/utils";
+import { TODAY, openParam, agingBucket, dueDateOf, cn, contractTotal, fmtDate, money, periodState, triggerLabel, uid, withTax } from "../lib/utils";
 import { Avatar, Badge, Button, Checkbox, Empty, Field, Input, Modal, PageHeader, SearchInput, Segmented, Select, StatGroup, Tabs, ease, td, th } from "../components/ui";
 import { InvoiceModal, InvoicePill, PayPill, savePeriodChanges } from "../components/finance";
 import { GridCell, useGridDraft, type Change, type Grid } from "../components/grid";
@@ -15,10 +15,10 @@ export function FinanceCenter({ tab: initial }: { tab?: string }) {
   const s = useStore();
   const [tab, setTab] = useState<"todo" | "billing" | "payables">((initial as "todo") ?? "todo");
   const [exporting, setExporting] = useState(openParam("export"));
-  const rows: Row[] = useMemo(() => s.cases.flatMap((c) => c.periods.map((p) => ({ c, p, st: periodState(c, p) }))), [s.cases]);
+  const rows: Row[] = useMemo(() => s.cases.flatMap((c) => c.periods.map((p) => ({ c, p, st: periodState(c, p, s.settings.payDays) }))), [s.cases, s.settings.payDays]);
   const todo = rows.filter((r) => r.st.invoice === "待開立");
   const ar = rows.filter((r) => r.st.pay === "待收款");
-  const overdue = ar.filter((r) => r.st.overdue > s.settings.overdueDays);
+  const overdue = ar.filter((r) => r.st.overdue > 0);
   const paidThisMonth = rows.filter((r) => r.p.paidDate?.startsWith(TODAY.slice(0, 7)));
   const grid = useGridDraft((changes: Change[]) => savePeriodChanges(s, changes));
   const switchTab = (v: typeof tab) => s.guarded(() => setTab(v));
@@ -40,7 +40,7 @@ export function FinanceCenter({ tab: initial }: { tab?: string }) {
           items={[
             { label: "待開立發票", value: todo.length, sub: <>含稅 {money(todo.reduce((n, r) => n + withTax(r.p.amount), 0))}</>, onClick: () => switchTab("todo") },
             { label: "應收未收（含稅）", value: money(ar.reduce((n, r) => n + withTax(r.p.amount), 0)), sub: <>{ar.length} 筆已開票</>, onClick: () => switchTab("billing") },
-            { label: `逾期 ${s.settings.overdueDays} 天以上`, value: overdue.length, sub: <span className="text-rose-600">{money(overdue.reduce((n, r) => n + withTax(r.p.amount), 0))}</span> },
+            { label: "已逾期", value: overdue.length, sub: <span className="text-rose-600">{money(overdue.reduce((n, r) => n + withTax(r.p.amount), 0))}</span> },
             { label: "本月已收款", value: money(paidThisMonth.reduce((n, r) => n + withTax(r.p.amount), 0)), sub: <>{paidThisMonth.length} 筆</> },
           ]}
         />
@@ -134,7 +134,7 @@ function BillingTable({ rows, grid }: { rows: Row[]; grid: Grid }) {
   const [q, setQ] = useState("");
   const [adding, setAdding] = useState(false);
   const can = s.perms.financeRecord;
-  const payOf = (r: Row) => (r.st.pay === "待收款" && r.st.overdue > s.settings.overdueDays ? "逾期" : r.st.pay);
+  const payOf = (r: Row) => (r.st.pay === "待收款" && r.st.overdue > 0 ? "逾期" : r.st.pay);
   const trig = (r: Row) => (r.p.trigger === "開課" ? "第一堂課開課當月" : r.p.trigger === "取證" ? "取證後" : "自訂日期");
   const base = rows.filter((r) => r.st.invoice !== "未觸發" || r.p.invoiceNo);
   const opt = (vals: string[], fn: (r: Row) => string) => vals.map((v) => ({ value: v, label: v, hint: String(base.filter((r) => fn(r) === v).length) }));
@@ -150,7 +150,7 @@ function BillingTable({ rows, grid }: { rows: Row[]; grid: Grid }) {
     .sort((a, b) => (b.p.invoiceDate ?? b.st.triggeredOn ?? "").localeCompare(a.p.invoiceDate ?? a.st.triggeredOn ?? ""));
   const cols: [string, number, boolean?][] = [
     ["客戶／案件", 200], ["期數", 100], ["開票時機", 120], ["含稅金額", 120, true], ["通知開票日", 130], ["發票狀態", 110],
-    ["發票號碼", 140], ["開立日期", 130], ["請款狀態", 150], ["收款日期", 130], ["帳齡", 90],
+    ["發票號碼", 140], ["開立日期", 130], ["約定付款日", 130], ["請款狀態", 150], ["收款日期", 130], ["帳齡", 130],
   ];
   const plain = "h-11 border-b border-r border-ink-100 px-3 text-[13px]";
   return (
@@ -170,7 +170,7 @@ function BillingTable({ rows, grid }: { rows: Row[]; grid: Grid }) {
       <FilterChips facets={facets} f={f} />
       {adding && <NewPeriodModal onClose={() => setAdding(false)} />}
       <div className="overflow-x-auto rounded-xl border border-ink-200 bg-white shadow-card">
-        <table className="w-full min-w-[1420px] table-fixed border-separate border-spacing-0">
+        <table className="w-full min-w-[1590px] table-fixed border-separate border-spacing-0">
           <colgroup>
             {cols.map(([h, w]) => (
               <col key={h} style={{ width: w }} />
@@ -190,7 +190,7 @@ function BillingTable({ rows, grid }: { rows: Row[]; grid: Grid }) {
               const cu = s.customerOf(r.c);
               const key = `${r.c.id}:${r.p.id}`;
               const cell = (field: keyof typeof r.p & string, col: number, extra: Partial<Parameters<typeof GridCell>[0]> = {}) => {
-                const orig = String(r.p[field] ?? "");
+                const orig = String((field === "dueDate" ? dueDateOf(r.p, s.settings.payDays) : r.p[field]) ?? "");
                 return (
                   <GridCell
                     pos={[ri, col]}
@@ -227,12 +227,13 @@ function BillingTable({ rows, grid }: { rows: Row[]; grid: Grid }) {
                   </td>
                   {cell("invoiceNo", 6, { type: "text", format: undefined, className: "font-mono text-[12.5px]" })}
                   {cell("invoiceDate", 7, { editable: can && invoiced })}
+                  {cell("dueDate", 8, { editable: can && invoiced })}
                   <td className={plain}>
-                    <PayPill v={r.st.pay} overdue={r.st.overdue} limit={s.settings.overdueDays} />
+                    <PayPill v={r.st.pay} overdue={r.st.overdue} />
                   </td>
-                  {cell("paidDate", 9, { editable: can && invoiced })}
+                  {cell("paidDate", 10, { editable: can && invoiced })}
                   <td className={cn(plain, "border-r-0 tabular-nums")}>
-                    {r.st.pay === "待收款" ? <span className={cn(r.st.overdue > 90 ? "text-rose-600" : r.st.overdue > 30 ? "text-ink-900" : "text-ink-600")}>{agingBucket(r.st.overdue)}</span> : <span className="text-ink-300">—</span>}
+                    {r.st.pay === "待收款" ? <span className={cn(r.st.overdue > 90 ? "text-rose-600" : r.st.overdue > 0 ? "text-ink-900" : "text-ink-500")}>{agingBucket(r.st.overdue)}</span> : <span className="text-ink-300">—</span>}
                   </td>
                 </tr>
               );
@@ -456,7 +457,7 @@ function ExportModal({ onClose }: { onClose: () => void }) {
   const s = useStore();
   const [scope, setScope] = useState<"todo" | "all">("todo");
   const [picked, setPicked] = useState<Set<string> | null>(null);
-  const base = s.cases.filter((c) => c.periods.length && (scope === "all" || c.periods.some((p) => periodState(c, p).invoice === "待開立")));
+  const base = s.cases.filter((c) => c.periods.length && (scope === "all" || c.periods.some((p) => periodState(c, p, s.settings.payDays).invoice === "待開立")));
   const sel = picked ?? new Set(base.map((c) => c.id));
   const list = base.filter((c) => sel.has(c.id));
   const N = Math.max(1, ...list.map((c) => c.periods.length));
@@ -468,7 +469,7 @@ function ExportModal({ onClose }: { onClose: () => void }) {
   ];
   const rowOf = (c: Case) => {
     const cu = s.customerOf(c);
-    const st = c.periods.map((p) => periodState(c, p));
+    const st = c.periods.map((p) => periodState(c, p, s.settings.payDays));
     const kind = [...c.periods].reverse().find((p) => p.invoiceKind)?.invoiceKind ?? "電子發票";
     const pending = st.some((x) => x.invoice === "待開立");
     const checks = [

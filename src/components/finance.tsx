@@ -8,13 +8,14 @@ import { Badge, Button, Field, Input, Modal, Segmented } from "./ui";
 export function InvoicePill({ v }: { v: InvoiceStatus }) {
   return <Badge tone={v === "待開立" ? "amber" : v === "已開立" ? "outline" : "gray"}>{v}</Badge>;
 }
-export function PayPill({ v, overdue = 0, limit = 30 }: { v: PayStatus; overdue?: number; limit?: number }) {
+// 逾期：超過約定付款日仍未收款
+export function PayPill({ v, overdue = 0 }: { v: PayStatus; overdue?: number }) {
   if (v === "—") return <span className="text-ink-300">—</span>;
   if (v === "已收款") return <Badge tone="green">已收款</Badge>;
-  return <Badge tone={overdue > limit ? "red" : "blue"}>{overdue > limit ? `逾期 ${overdue} 天` : "待收款"}</Badge>;
+  return <Badge tone={overdue > 0 ? "red" : "blue"}>{overdue > 0 ? `逾期 ${overdue} 天` : "待收款"}</Badge>;
 }
 
-export const PERIOD_FIELDS: Record<string, string> = { notifyDate: "通知開票日", amount: "金額（未稅）", invoiceNo: "發票號碼", invoiceDate: "開立日期", paidDate: "收款日期" };
+export const PERIOD_FIELDS: Record<string, string> = { notifyDate: "通知開票日", amount: "金額（未稅）", invoiceNo: "發票號碼", invoiceDate: "開立日期", dueDate: "約定付款日", paidDate: "收款日期" };
 
 // 分期欄位的暫存變更寫回案件；列鍵為「案件編號:期別 id」。填了發票號碼而未填開立日期時，以儲存當日帶入
 export function savePeriodChanges(s: Store, changes: Change[]) {
@@ -31,7 +32,7 @@ export function savePeriodChanges(s: Store, changes: Change[]) {
           if (ch.field === "amount") n.amount = Number(ch.value) || 0;
           else (n as Record<string, unknown>)[ch.field] = ch.value || undefined;
         });
-        if (!n.invoiceNo) n.invoiceDate = undefined;
+        if (!n.invoiceNo) n.invoiceDate = n.dueDate = undefined;
         else if (!n.invoiceDate) n.invoiceDate = TODAY;
         return n;
       }),

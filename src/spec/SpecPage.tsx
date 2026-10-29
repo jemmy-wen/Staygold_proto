@@ -301,7 +301,7 @@ export function SpecPage() {
           <p className="text-[12px] font-medium text-brand-700">PRD v1.0 對照・High-fidelity Prototype</p>
           <h1 className="mt-2 text-[32px] font-semibold tracking-tight">畫面規格</h1>
           <p className="mt-3 text-[14px] leading-relaxed text-ink-600">
-            列出系統的每一個畫面：開頭是該畫面的使用者目標，左側是可直接操作的 prototype，右側是功能、User Flow、對應的 PRD v1.0 節次與原文；涉及流程的畫面另附狀態規則與相關通知。各畫面的操作互不影響，按「重設」可回到初始狀態。
+            列出系統的每一個畫面：開頭是該畫面的使用者目標，左側是可直接操作的 prototype，右側是功能、User Flow、對應的 PRD v1.0 節次與原文；有數字的畫面附數字與欄位來源，涉及流程的畫面另附狀態規則與相關通知。各畫面的操作互不影響，按「重設」可回到初始狀態。
           </p>
           <div className="mt-5 flex flex-wrap gap-4 text-[12.5px] text-ink-600">
             <span>

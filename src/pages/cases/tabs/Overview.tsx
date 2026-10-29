@@ -114,7 +114,7 @@ function ReviewCard({ c }: { c: Case }) {
                         />
                       );
                     })}
-                    <td className={cn("border-b border-ink-100 px-4 text-right text-[12.5px] tabular-nums", off < -10 ? "font-medium text-rose-600" : "text-ink-500")}>{t.base ? `${off}%` : "—"}</td>
+                    <td className="border-b border-ink-100 px-4 text-right text-[12.5px] tabular-nums text-ink-500">{t.base ? `${off}%` : "—"}</td>
                   </tr>
                 );
               })}

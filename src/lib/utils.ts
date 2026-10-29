@@ -165,7 +165,10 @@ export const statusSuggestion = (c: Case, s: Pick<Settings, "renewDays">): CaseS
 export type InvoiceStatus = "未觸發" | "待開立" | "已開立";
 export type PayStatus = "—" | "待收款" | "已收款";
 
-export function periodState(c: Case, p: Period) {
+// 約定付款日：有填以填的為準，未填時為開立日期加系統設定的付款天數
+export const dueDateOf = (p: Period, payDays: number) => p.dueDate ?? (p.invoiceDate ? addDays(p.invoiceDate, payDays) : undefined);
+
+export function periodState(c: Case, p: Period, payDays: number) {
   const triggered =
     p.trigger === "開課"
       ? (!!c.milestones.courseStart && c.milestones.courseStart <= TODAY) || (!!c.manualStatus && STATUSES.indexOf(c.manualStatus) >= STATUSES.indexOf("輔導中")) // 手動改到輔導中以後視為已開課
@@ -174,10 +177,11 @@ export function periodState(c: Case, p: Period) {
         : !!p.customDate && p.customDate <= TODAY;
   const invoice: InvoiceStatus = p.invoiceNo ? "已開立" : triggered ? "待開立" : "未觸發";
   const pay: PayStatus = p.paidDate ? "已收款" : p.invoiceNo ? "待收款" : "—";
-  const overdue = p.invoiceNo && !p.paidDate && p.invoiceDate ? daysSince(p.invoiceDate) : 0;
+  const due = p.invoiceNo ? dueDateOf(p, payDays) : undefined;
+  const overdue = due && !p.paidDate ? Math.max(0, daysSince(due)) : 0; // 超過約定付款日的天數
   const triggeredOn =
     p.trigger === "開課" ? c.milestones.courseStart : p.trigger === "取證" ? c.milestones.certified : p.customDate;
-  return { triggered, invoice, pay, overdue, triggeredOn };
+  return { triggered, invoice, pay, overdue, due, triggeredOn };
 }
 
 export const triggerLabel = (p: Period) =>
@@ -185,7 +189,9 @@ export const triggerLabel = (p: Period) =>
 
 export const contractTotal = (c: Case) => c.pricing.coaching.special + c.pricing.audit.special;
 
-export const agingBucket = (d: number) => (d <= 30 ? "0–30 天" : d <= 60 ? "31–60 天" : d <= 90 ? "61–90 天" : "90 天以上");
+// 帳齡：依超過約定付款日的天數分段（PRD 3.10 逾期天數分布）
+export const AGING = ["未到期", "逾期 1–30 天", "逾期 31–60 天", "逾期 61–90 天", "逾期 90 天以上"] as const;
+export const agingBucket = (d: number) => (d <= 0 ? AGING[0] : d <= 30 ? AGING[1] : d <= 60 ? AGING[2] : d <= 90 ? AGING[3] : AGING[4]);
 
 export const initials = (name: string) => {
   const ascii = name.match(/[A-Za-z]+/);

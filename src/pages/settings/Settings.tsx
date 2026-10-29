@@ -61,7 +61,7 @@ const NOTIF_SPEC: { type: NotifType; group: string; when: (st: Settings) => stri
   { type: "信件待確認", group: "案件進度", when: () => "有系統建議、尚未確認的信件", to: ["owner"], email: false, done: "確認或忽略所有建議" },
   { type: "發票待開立（第一期）", group: "發票與請款", when: () => "第一堂課開課當月", to: ["finance", "admin"], email: true, done: "登記發票已開立" },
   { type: "發票待開立（取證後各期）", group: "發票與請款", when: () => "案件轉為「已取證」或到達約定日", to: ["finance", "admin"], email: true, done: "登記發票已開立" },
-  { type: "收款逾期", group: "發票與請款", when: (st) => `待收款超過 ${st.overdueDays} 天`, to: ["finance", "exec"], email: false, done: "登記已收款" },
+  { type: "收款逾期", group: "發票與請款", when: (st) => `待收款且超過約定付款日（未填時為開立後 ${st.payDays} 天）`, to: ["finance", "exec"], email: false, done: "登記已收款" },
   { type: "差旅費填報提醒", group: "差旅費報帳", when: (st) => `每月 ${st.travelRemindDay} 日`, to: ["reporter"], email: false, done: "次月 1 日自動結束" },
   { type: "差旅費未歸戶", group: "差旅費報帳", when: (st) => `標記未歸戶超過 ${st.unassignedDays} 天`, to: ["reporter", "admin"], email: false, done: "指定所屬案件" },
   { type: "續證準備", group: "證書到期與續證", when: (st) => `證書到期前 ${st.renewDays[0]} 天`, to: ["owner", "admin"], email: true, done: "已建立續證案件" },
@@ -83,12 +83,12 @@ function NumberField({ label, value, onChange, suffix }: { label: string; value:
 function NotifySettings() {
   const s = useStore();
   const [d, setD] = useState(s.settings);
-  const changed = (["renewDays", "signWaitDays", "overdueDays", "unassignedDays", "travelRemindDay"] as const).filter((k) => JSON.stringify(d[k]) !== JSON.stringify(s.settings[k])).length;
+  const changed = (["renewDays", "signWaitDays", "payDays", "unassignedDays", "travelRemindDay"] as const).filter((k) => JSON.stringify(d[k]) !== JSON.stringify(s.settings[k])).length;
   useLeaveGuard(
     changed,
     () => {
-      s.updateSettings({ renewDays: d.renewDays, signWaitDays: d.signWaitDays, overdueDays: d.overdueDays, unassignedDays: d.unassignedDays, travelRemindDay: d.travelRemindDay });
-      s.log({ module: "系統設定", target: "通知規則", action: "調整提醒天數", after: `續證 ${d.renewDays.join("／")} 天・回簽 ${d.signWaitDays} 天・逾期 ${d.overdueDays} 天` });
+      s.updateSettings({ renewDays: d.renewDays, signWaitDays: d.signWaitDays, payDays: d.payDays, unassignedDays: d.unassignedDays, travelRemindDay: d.travelRemindDay });
+      s.log({ module: "系統設定", target: "通知規則", action: "調整提醒天數", after: `續證 ${d.renewDays.join("／")} 天・回簽 ${d.signWaitDays} 天・付款 開立後 ${d.payDays} 天` });
       s.toast("已儲存通知規則");
     },
     () => setD(s.settings),
@@ -108,7 +108,7 @@ function NotifySettings() {
         <p className="mt-5 text-[14px] font-semibold text-ink-900">其他門檻</p>
         <div className="mt-3 grid grid-cols-4 gap-4">
           <NumberField label="待回簽提醒" value={d.signWaitDays} suffix="天" onChange={(n) => setD({ ...d, signWaitDays: n })} />
-          <NumberField label="收款逾期" value={d.overdueDays} suffix="天" onChange={(n) => setD({ ...d, overdueDays: n })} />
+          <NumberField label="約定付款日預設（開立後）" value={d.payDays} suffix="天" onChange={(n) => setD({ ...d, payDays: n })} />
           <NumberField label="差旅費未歸戶" value={d.unassignedDays} suffix="天" onChange={(n) => setD({ ...d, unassignedDays: n })} />
           <NumberField label="差旅費填報提醒" value={d.travelRemindDay} suffix="日" onChange={(n) => setD({ ...d, travelRemindDay: n })} />
         </div>

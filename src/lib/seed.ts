@@ -653,7 +653,7 @@ export const notifHistorySeed: Notif[] = [
 export const settingsSeed: Settings = {
   renewDays: [180, 90, 30],
   signWaitDays: 14,
-  overdueDays: 30,
+  payDays: 30,
   unassignedDays: 7,
   travelRemindDay: 25,
   items: ITEMS,

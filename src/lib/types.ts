@@ -116,6 +116,7 @@ export type Period = {
   invoiceNo?: string;
   invoiceDate?: string;
   invoiceKind?: "紙本" | "電子發票";
+  dueDate?: string; // 約定付款日；未填時為開立日期加付款天數
   paidDate?: string;
   note?: string;
 };
@@ -281,7 +282,7 @@ export type Notif = NotifHit & {
 export type Settings = {
   renewDays: [number, number, number];
   signWaitDays: number;
-  overdueDays: number;
+  payDays: number;
   unassignedDays: number;
   travelRemindDay: number;
   items: string[];

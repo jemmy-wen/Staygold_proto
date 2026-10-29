@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { ArrowRight, CircleCheck, Plus } from "lucide-react";
 import { useStore } from "../lib/store";
 import type { Case } from "../lib/types";
-import { ACTIVE_STATUSES, TODAY, addDays, agingBucket, cn, contractTotal, daysUntil, fmtDate, inRange, iso, lineOf, money, openParam, periodState, toDate, weekRange, weekday, withTax } from "../lib/utils";
+import { ACTIVE_STATUSES, AGING, TODAY, addDays, agingBucket, cn, contractTotal, daysUntil, fmtDate, inRange, iso, lineOf, money, openParam, periodState, toDate, weekRange, weekday, withTax } from "../lib/utils";
 import { Avatar, Badge, Button, Card, Empty, Segmented, StatGroup, ease } from "../components/ui";
 import { openNotif } from "../components/layout";
 import { NotifIcon } from "./Notifications";
@@ -246,7 +246,7 @@ function Finance({ cases, range }: { cases: Case[]; range: Range }) {
   const s = useStore();
   const r = rangeOf(range);
   const label = RANGE_LABEL[range];
-  const ar = cases.flatMap((c) => c.periods.map((p) => ({ c, p, st: periodState(c, p) }))).filter((x) => x.st.pay === "待收款");
+  const ar = cases.flatMap((c) => c.periods.map((p) => ({ c, p, st: periodState(c, p, s.settings.payDays) }))).filter((x) => x.st.pay === "待收款");
   const signed = cases.filter((c) => inRange(c.milestones.signed, r) && contractTotal(c) > 0);
   const paid = cases.flatMap((c) => c.periods).filter((p) => inRange(p.paidDate, r));
   const toFinance = s.perms.financeCenter ? () => s.go({ page: "finance", tab: "billing" }) : undefined;
@@ -275,9 +275,11 @@ function Finance({ cases, range }: { cases: Case[]; range: Range }) {
   );
 }
 
-// 應收帳款依開票後天數分段（PRD 3.2 應收帳款總覽）
+const AGING_COLOR = ["#D3DAD9", "#ABD4CF", "#7DB9B2", "#4F9A92", "#23504B"];
+
+// 應收帳款依超過約定付款日的天數分段（PRD 3.2 應收帳款總覽：未收金額、逾期天數）
 function Aging({ ar }: { ar: { p: { amount: number }; st: { overdue: number } }[] }) {
-  const buckets = ["0–30 天", "31–60 天", "61–90 天", "90 天以上"].map((b) => ({ b, amt: 0, n: 0 }));
+  const buckets = AGING.map((b) => ({ b, amt: 0, n: 0 }));
   for (const x of ar) {
     const k = buckets.find((y) => y.b === agingBucket(x.st.overdue))!;
     k.amt += withTax(x.p.amount);
@@ -289,14 +291,14 @@ function Aging({ ar }: { ar: { p: { amount: number }; st: { overdue: number } }[
       <p className="text-[13px] font-medium text-ink-600">應收帳款帳齡</p>
       <div className="mt-3 flex h-2.5 overflow-hidden rounded-full bg-ink-100">
         {buckets.map((a, i) => (
-          <motion.div key={a.b} className="h-full" style={{ background: ["#ABD4CF", "#7DB9B2", "#4F9A92", "#23504B"][i] }} initial={{ width: 0 }} animate={{ width: `${(a.amt / total) * 100}%` }} transition={{ duration: 0.5, ease }} />
+          <motion.div key={a.b} className="h-full" style={{ background: AGING_COLOR[i] }} initial={{ width: 0 }} animate={{ width: `${(a.amt / total) * 100}%` }} transition={{ duration: 0.5, ease }} />
         ))}
       </div>
-      <div className="mt-3 grid grid-cols-4 gap-3">
+      <div className="mt-3 grid grid-cols-5 gap-3">
         {buckets.map((a, i) => (
           <div key={a.b}>
             <p className="flex items-center gap-1.5 text-[12px] text-ink-500">
-              <span className="size-2 rounded-full" style={{ background: ["#ABD4CF", "#7DB9B2", "#4F9A92", "#23504B"][i] }} />
+              <span className="size-2 rounded-full" style={{ background: AGING_COLOR[i] }} />
               {a.b}
             </p>
             <p className="mt-1 text-[15px] font-semibold tabular-nums text-ink-900">{money(a.amt)}</p>
