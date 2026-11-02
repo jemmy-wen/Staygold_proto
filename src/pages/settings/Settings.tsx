@@ -4,6 +4,7 @@ import { useStore } from "../../lib/store";
 import { RECIPIENT_LABEL } from "../../lib/rules";
 import { G_LABEL, G_SERVICES, googleOf } from "../../lib/perms";
 import type { NotifType, Recipient, Settings } from "../../lib/types";
+import { ActivityButton } from "../../components/Activity";
 import { Badge, Button, Field, Input, PageHeader, SearchInput, Table, td, th } from "../../components/ui";
 import { useLeaveGuard } from "../../components/grid";
 import { cn, itemCode } from "../../lib/utils";
@@ -22,7 +23,7 @@ export function SettingsPage({ tab, memberId }: { tab?: Tab; memberId?: string }
   ];
   return (
     <div>
-      <PageHeader title="設定" />
+      <PageHeader title="設定" actions={<ActivityButton title="設定" match={(a) => a.module === "成員與權限" || a.module === "系統設定"} />} />
       <div className="flex gap-8 px-8 py-6">
         <nav className="w-52 shrink-0 space-y-0.5">
           {items
@@ -99,7 +100,7 @@ function NotifySettings() {
       <div>
         <h2 className="text-[16px] font-semibold text-ink-900">通知規則</h2>
       </div>
-      <div className="rounded-xl border border-ink-200 bg-white p-5 shadow-card">
+      <div className="glass-card rounded-xl p-5">
         <p className="text-[14px] font-semibold text-ink-900">證書到期提醒</p>
         <div className="mt-4 grid grid-cols-3 gap-4">
           <NumberField label="續證準備" value={d.renewDays[0]} suffix="天前" onChange={(n) => setD({ ...d, renewDays: [n, d.renewDays[1], d.renewDays[2]] })} />
@@ -232,7 +233,7 @@ function WorkspaceSettings() {
       <div>
         <h2 className="text-[16px] font-semibold text-ink-900">工作空間與串接</h2>
       </div>
-      <div className="grid grid-cols-2 gap-4 rounded-xl border border-ink-200 bg-white p-5 shadow-card">
+      <div className="glass-card grid grid-cols-2 gap-4 rounded-xl p-5">
         <Field label="工作空間名稱">
           <Input value={name} onChange={(e) => setName(e.target.value)} />
         </Field>
@@ -247,7 +248,7 @@ function WorkspaceSettings() {
           const ok = need.filter((m) => googleOf(m, x.key) === "connected");
           const pending = need.filter((m) => googleOf(m, x.key) !== "connected");
           return (
-            <div key={x.key} className="rounded-xl border border-ink-200 bg-white p-5 shadow-card">
+            <div key={x.key} className="glass-card rounded-xl p-5">
               <div className="flex items-center justify-between">
                 <span className="text-ink-500 [&>svg]:size-5 [&>svg]:stroke-[1.75]">{ICON[x.key]}</span>
                 <Badge tone={pending.length ? "amber" : "green"}>

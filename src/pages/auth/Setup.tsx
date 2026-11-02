@@ -27,14 +27,14 @@ export function Setup() {
             首次啟動
           </p>
           <h1 className="mt-4 text-[28px] font-semibold leading-[1.3] tracking-tight">歡迎使用恆永顧問內部系統</h1>
-          <p className="mt-4 text-[14px] leading-[1.7] text-white/80">這個帳號在系統部署時被指定為擁有者。確認公司名稱與 Google 串接狀態後，就可以開始邀請同仁加入。</p>
+          <p className="mt-4 text-[14px] leading-[1.7] text-white">這個帳號在系統部署時被指定為擁有者。確認公司名稱與 Google 串接狀態後，就可以開始邀請同仁加入。</p>
         </div>
       }
     >
       <div className="w-[460px] animate-rise space-y-6">
         <div>
           <p className="text-[12px] font-medium text-ink-500">擁有者帳號</p>
-          <div className="mt-2 flex items-center gap-3 rounded-xl border border-ink-200 bg-white px-4 py-3 shadow-card">
+          <div className="glass-card mt-2 flex items-center gap-3 rounded-xl px-4 py-3">
             <Avatar m={owner} size={32} />
             <div className="min-w-0 flex-1">
               <p className="text-[13px] font-medium text-ink-900">{owner?.name}</p>
@@ -48,7 +48,7 @@ export function Setup() {
         </Field>
         <div>
           <p className="text-[12px] font-medium text-ink-500">Google 串接檢查</p>
-          <div className="mt-2 divide-y divide-ink-100 rounded-xl border border-ink-200 bg-white shadow-card">
+          <div className="glass-card mt-2 divide-y divide-ink-100 overflow-hidden rounded-xl">
             {CHECKS.map((c) => (
               <div key={c.name} className="flex items-start gap-3 px-4 py-3">
                 {c.ok ? <CircleCheck className="mt-0.5 size-4 shrink-0 text-brand-600" /> : <CircleAlert className="mt-0.5 size-4 shrink-0 text-amber-600" />}

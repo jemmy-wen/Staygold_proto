@@ -1,19 +1,22 @@
 import { useMemo, useState } from "react";
-import { CalendarCheck, CalendarX2, Car, Check, MapPin, Plus, Sparkles } from "lucide-react";
+import { CalendarX2, Car, Check, ChevronDown, Info, MapPin, Plus, Sparkles } from "lucide-react";
 import { useStore } from "../lib/store";
 import { travelCandidates } from "../lib/rules";
+import { ActivityButton, ActivityTimeline } from "../components/Activity";
+import { useGridDraft, type Change, type Grid } from "../components/grid";
 import { FilterChips, FilterMenu, Toolbar, pass, useFacets, type Facet } from "../components/filters";
 import type { Travel } from "../lib/types";
 import { TODAY, openParam, param, cn, daysSince, fmtDate, money, nowStamp, uid, weekday } from "../lib/utils";
-import { Avatar, Badge, Button, Field, Input, MenuItem, Modal, OptionList, PageHeader, Popover, SearchInput, Segmented, Select, StatGroup, td, th } from "../components/ui";
+import { Avatar, Badge, Button, Drawer, Field, Input, Modal, OptionList, PageHeader, Popover, SearchInput, Select, td, th } from "../components/ui";
 
-const LINK_TONE = { 系統建議已確認: "brand", 人工手動指定: "gray", 未歸戶: "amber" } as const;
+const LINK_TONE = { 系統建議已確認: "brand", 人工手動指定: "blue", 未歸戶: "amber" } as const;
 
 export function TravelPage() {
   const s = useStore();
   const f = useFacets();
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(openParam("travelNew"));
+  const [detailId, setDetailId] = useState<string | null>(param("drawer"));
   const mine = s.perms.travelAll ? s.travel : s.travel.filter((t) => t.memberId === s.me.id);
   const nameOf = (id: string) => s.memberOf(id)?.nickname ?? s.memberOf(id)?.name ?? id;
   const opt = (vals: string[], fn: (t: Travel) => string, label = (v: string) => v) => vals.map((v) => ({ value: v, label: label(v), hint: String(mine.filter((t) => fn(t) === v).length) }));
@@ -27,24 +30,34 @@ export function TravelPage() {
     .filter((t) => pass(f.value, "link", t.link) && pass(f.value, "category", t.category) && pass(f.value, "member", t.memberId) && pass(f.value, "case", t.caseId ?? "未歸戶"))
     .filter((t) => !q || [t.detail, t.caseId ?? "", nameOf(t.memberId)].some((x) => x.toLowerCase().includes(q.toLowerCase())))
     .sort((a, b) => b.date.localeCompare(a.date));
-  const month = mine.filter((t) => t.date.startsWith(TODAY.slice(0, 7)));
-  const confirmed = mine.filter((t) => t.link === "系統建議已確認").length;
-
-  const assign = (t: Travel, caseId: string | undefined) => {
-    s.updateTravel(t.id, { caseId, link: caseId ? "人工手動指定" : "未歸戶" });
-    s.log({ module: "差旅費", caseId, target: `${t.detail} ${money(t.amount)}`, action: caseId ? "手動指定案件" : "改為未歸戶", before: t.caseId ?? "未歸戶", after: caseId ?? "未歸戶" });
-    s.toast(caseId ? `已歸戶至 ${caseId}` : "已改為未歸戶", caseId ? "success" : "info");
-  };
-  const assignable = s.visibleCases;
+  const detail = mine.find((t) => t.id === detailId);
+  const grid = useGridDraft((changes: Change[]) => {
+    const bad = changes.filter((ch) => travelInvalid(ch.field, ch.value));
+    changes
+      .filter((ch) => !bad.includes(ch))
+      .forEach((ch) => {
+        const t = s.travel.find((x) => x.id === ch.row);
+        if (!t) return;
+        const shown = (v: string) => (ch.field === "amount" ? money(Number(v)) : ch.field === "date" ? fmtDate(v) : v);
+        s.updateTravel(ch.row, ch.field === "amount" ? { amount: Number(ch.value) } : { [ch.field]: ch.value.trim() });
+        s.log({ module: "差旅費", refId: t.id, caseId: t.caseId, target: `${ch.field === "detail" ? ch.value.trim() : t.detail} ${money(ch.field === "amount" ? Number(ch.value) : t.amount)}`, action: `修改${TRAVEL_FIELDS[ch.field]}`, before: shown(ch.original), after: shown(ch.value) });
+      });
+    const saved = changes.length - bad.length;
+    if (bad.length) s.toast(`${bad.length} 項內容不正確，未儲存${saved ? `；其餘 ${saved} 項已儲存` : ""}`, "info");
+    else s.toast(`已儲存 ${saved} 項變更`);
+  });
 
   return (
     <div className="pb-10">
       <PageHeader
         title="差旅費"
         actions={
-          <Button variant="dark" icon={<Plus className="size-4" />} onClick={() => setOpen(true)}>
-            新增差旅費
-          </Button>
+          <>
+            <ActivityButton title="差旅費" match={(a) => a.module === "差旅費"} />
+            <Button variant="dark" icon={<Plus className="size-4" />} onClick={() => setOpen(true)}>
+              新增差旅費
+            </Button>
+          </>
         }
       />
       <div className="px-8 pt-5">
@@ -56,7 +69,7 @@ export function TravelPage() {
         <FilterChips facets={facets} f={f} />
       </div>
       <div className="px-8">
-        <div className="overflow-x-auto rounded-xl border border-ink-200 bg-white shadow-card">
+        <div className="glass-card overflow-x-auto rounded-xl">
           <table className="w-full border-separate border-spacing-0">
             <thead>
               <tr>
@@ -72,9 +85,18 @@ export function TravelPage() {
                 const m = s.memberOf(t.memberId);
                 const editable = t.memberId === s.me.id || s.perms.travelAll;
                 return (
-                  <tr key={t.id} className="hover:bg-ink-25">
-                    <td className={cn(td, "pl-5 tabular-nums")}>
-                      {fmtDate(t.date)} <span className="text-ink-400">{weekday(t.date)}</span>
+                  <tr
+                    key={t.id}
+                    tabIndex={0}
+                    aria-label={`查看 ${t.detail} 的詳情`}
+                    onClick={() => setDetailId(t.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && e.target === e.currentTarget) setDetailId(t.id);
+                    }}
+                    className={cn("cursor-pointer outline-none transition-colors hover:bg-ink-25 focus-visible:bg-brand-50", detailId === t.id && "bg-brand-50")}
+                  >
+                    <td className={cn(td, "pl-5 tabular-nums", grid.dirty(t.id, "date") && "bg-brand-50/60")}>
+                      {fmtDate(grid.get(t.id, "date", t.date))} <span className="text-ink-500">{weekday(grid.get(t.id, "date", t.date) || t.date)}</span>
                     </td>
                     <td className={td}>
                       <span className="flex items-center gap-2">
@@ -82,39 +104,12 @@ export function TravelPage() {
                         {m?.nickname ?? m?.name}
                       </span>
                     </td>
-                    <td className={cn(td, "text-ink-600")}>{t.category}</td>
-                    <td className={td}>{t.detail}</td>
-                    <td className={cn(td, "text-right font-medium tabular-nums")}>{money(t.amount)}</td>
-                    <td className={td}>
-                      {editable ? (
-                        <Popover
-                          width={320}
-                          trigger={({ toggle }) => (
-                            <button onClick={toggle} className={cn("-mx-1.5 rounded-md px-1.5 py-1 text-left hover:bg-ink-50 hover:ring-1 hover:ring-ink-200", t.caseId ? "font-mono text-[12px] text-ink-800" : "text-[12.5px] text-ink-500")}>
-                              {t.caseId ?? "指定案件"}
-                            </button>
-                          )}
-                        >
-                          {(close) => {
-                            const cands = travelCandidates(t.date, t.memberId, s.events, s.cases, s.customers).map((x) => x.caseId);
-                            return (
-                              <OptionList
-                                searchAt={1}
-                                placeholder="搜尋案件編號或客戶"
-                                selected={[t.caseId ?? "__none"]}
-                                options={[
-                                  ...cands.map((id) => ({ value: id, label: id, hint: "當天行事曆" })),
-                                  ...assignable.filter((c) => !cands.includes(c.id)).map((c) => ({ value: c.id, label: c.id, hint: s.customerOf(c).short })),
-                                  { value: "__none", label: "標記為未歸戶" },
-                                ]}
-                                onPick={(v) => (assign(t, v === "__none" ? undefined : v), close())}
-                              />
-                            );
-                          }}
-                        </Popover>
-                      ) : (
-                        <span className="font-mono text-[12px]">{t.caseId ?? "—"}</span>
-                      )}
+                    <td className={cn(td, "text-ink-600", grid.dirty(t.id, "category") && "bg-brand-50/60")}>{grid.get(t.id, "category", t.category)}</td>
+                    <td className={cn(td, grid.dirty(t.id, "detail") && "bg-brand-50/60")}>{grid.get(t.id, "detail", t.detail)}</td>
+                    <td className={cn(td, "text-right font-medium tabular-nums", grid.dirty(t.id, "amount") && "bg-brand-50/60")}>{money(Number(grid.get(t.id, "amount", String(t.amount))))}</td>
+                    {/* 改案件是最常見的動作，在列表直接做；不觸發開啟詳情 */}
+                    <td className={td} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                      {editable ? <CasePicker t={t} /> : <span className="font-mono text-[12px]">{t.caseId ?? "—"}</span>}
                     </td>
                     <td className={td}>
                       <Badge tone={LINK_TONE[t.link]}>{t.link}</Badge>
@@ -128,7 +123,137 @@ export function TravelPage() {
         </div>
       </div>
       {open && <NewTravel onClose={() => setOpen(false)} />}
+      {detail && <TravelDetail t={detail} grid={grid} onClose={() => setDetailId(null)} />}
     </div>
+  );
+}
+
+// 所屬案件：候選來自當天行事曆，人選了才算數；隨時可重新指定（PRD 3.7）
+function CasePicker({ t, block }: { t: Travel; block?: boolean }) {
+  const s = useStore();
+  const assign = (caseId: string | undefined) => {
+    if (caseId === t.caseId) return;
+    s.updateTravel(t.id, { caseId, link: caseId ? "人工手動指定" : "未歸戶" });
+    s.log({ module: "差旅費", refId: t.id, caseId, target: `${t.detail} ${money(t.amount)}`, action: caseId ? "手動指定案件" : "改為未歸戶", before: t.caseId ?? "未歸戶", after: caseId ?? "未歸戶" });
+    s.toast(caseId ? `已歸戶至 ${caseId}` : "已改為未歸戶", caseId ? "success" : "info");
+  };
+  return (
+    <Popover
+      width={320}
+      trigger={({ toggle }) => (
+        <button
+          onClick={toggle}
+          className={cn(
+            "flex max-w-full items-center gap-1.5 rounded-md border bg-white text-left transition-colors hover:border-ink-300 hover:bg-ink-25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300",
+            block ? "h-9 w-full justify-between px-3" : "h-7 px-2",
+            t.caseId ? "border-ink-200 font-mono text-[12px] text-ink-800" : "border-dashed border-ink-300 text-[12.5px] font-medium text-ink-700",
+          )}
+        >
+          <span className="truncate">{t.caseId ?? "指定案件"}</span>
+          <ChevronDown className="size-3.5 shrink-0 text-ink-500" />
+        </button>
+      )}
+    >
+      {(close) => {
+        const cands = travelCandidates(t.date, t.memberId, s.events, s.cases, s.customers).map((x) => x.caseId);
+        return (
+          <OptionList
+            searchAt={1}
+            placeholder="搜尋案件編號或客戶"
+            selected={[t.caseId ?? "__none"]}
+            options={[
+              ...cands.map((id) => ({ value: id, label: id, hint: "當天行事曆" })),
+              ...s.visibleCases.filter((c) => !cands.includes(c.id)).map((c) => ({ value: c.id, label: c.id, hint: s.customerOf(c).short })),
+              { value: "__none", label: "標記為未歸戶" },
+            ]}
+            onPick={(v) => (assign(v === "__none" ? undefined : v), close())}
+          />
+        );
+      }}
+    </Popover>
+  );
+}
+
+const TRAVEL_FIELDS: Record<string, string> = { date: "日期", category: "類別", detail: "細項", amount: "金額" };
+const travelInvalid = (field: string, v: string) => (field === "amount" ? (Number(v) > 0 ? "" : "金額需大於 0") : v.trim() ? "" : `${TRAVEL_FIELDS[field]}不可空白`);
+
+// 差旅費詳情：與其他表格同一套規則，改了先暫存、按「儲存變更」才寫入；關閉面板不會遺失，列表與頂列都看得到未儲存
+function TravelDetail({ t, grid, onClose }: { t: Travel; grid: Grid; onClose: () => void }) {
+  const s = useStore();
+  const m = s.memberOf(t.memberId);
+  const editable = t.memberId === s.me.id || s.perms.travelAll;
+  const history = s.audit.filter((a) => a.refId === t.id);
+  const cands = travelCandidates(t.date, t.memberId, s.events, s.cases, s.customers).map((x) => x.caseId);
+  const val = (field: keyof typeof TRAVEL_FIELDS & string) => grid.get(t.id, field, String(t[field as keyof Travel] ?? ""));
+  const set = (field: string, v: string) => grid.set(t.id, field, String(t[field as keyof Travel] ?? ""), v);
+  const ring = (field: string) => (grid.dirty(t.id, field) ? "bg-brand-50/60" : undefined);
+  const err = (field: string) => (grid.dirty(t.id, field) ? travelInvalid(field, val(field)) : "");
+  return (
+    <Drawer
+      open
+      onClose={onClose}
+      title={val("detail") || t.detail}
+      desc={`${fmtDate(val("date") || t.date)} ${weekday(val("date") || t.date)}・${m?.nickname ?? m?.name}`}
+      width={440}
+      footer={
+        editable ? (
+          <>
+            <span className="mr-auto text-[12.5px] text-ink-600">{grid.count ? `${grid.count} 項未儲存` : "沒有未儲存的變更"}</span>
+            <Button variant="ghost" disabled={!grid.count} onClick={s.discardAll}>
+              捨棄
+            </Button>
+            <Button variant="dark" disabled={!grid.count} icon={<Check className="size-4" />} onClick={s.saveAll}>
+              儲存變更
+            </Button>
+          </>
+        ) : undefined
+      }
+    >
+      <div className="space-y-6 px-5 py-5">
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="日期">
+            <Input type="date" disabled={!editable} className={ring("date")} value={val("date")} onChange={(e) => set("date", e.target.value)} />
+            {err("date") && <p className="mt-1 text-[12px] text-rose-600">{err("date")}</p>}
+          </Field>
+          <Field label="類別">
+            <Select disabled={!editable} value={val("category")} onChange={(v) => set("category", v)} options={["交通費", "住宿費", "膳食費", "其他費用"]} />
+          </Field>
+          <div className="col-span-2">
+            <Field label="細項">
+              <Input disabled={!editable} className={ring("detail")} value={val("detail")} onChange={(e) => set("detail", e.target.value)} />
+              {err("detail") && <p className="mt-1 text-[12px] text-rose-600">{err("detail")}</p>}
+            </Field>
+          </div>
+          <div className="col-span-2">
+            <Field label="金額">
+              <Input type="number" className={cn("tabular-nums", ring("amount"))} disabled={!editable} value={val("amount")} onChange={(e) => set("amount", e.target.value)} />
+              {err("amount") && <p className="mt-1 text-[12px] text-rose-600">{err("amount")}</p>}
+            </Field>
+          </div>
+        </div>
+
+        <div>
+          <p className="mb-1.5 text-[12.5px] font-medium text-ink-700">所屬案件</p>
+          {editable ? <CasePicker t={t} block /> : <p className="font-mono text-[12.5px] text-ink-800">{t.caseId ?? "未歸戶"}</p>}
+          <div className="mt-2 flex items-center gap-2">
+            <Badge tone={LINK_TONE[t.link]}>{t.link}</Badge>
+            {t.caseId && t.link === "系統建議已確認" && !cands.includes(t.caseId) && (
+              <span className="flex items-center gap-1 text-[12px] text-ink-600">
+                <Info className="size-3.5 shrink-0" />
+                這天的行事曆沒有此案件，可視需要重新指定
+              </span>
+            )}
+          </div>
+        </div>
+
+        {s.perms.audit && (
+          <div>
+            <p className="mb-3 text-[12.5px] font-medium text-ink-700">這筆的異動紀錄</p>
+            {history.length ? <ActivityTimeline entries={history} showCase={false} /> : <p className="text-[12.5px] text-ink-600">還沒有異動紀錄</p>}
+          </div>
+        )}
+      </div>
+    </Drawer>
   );
 }
 
@@ -157,7 +282,7 @@ function NewTravel({ onClose }: { onClose: () => void }) {
     }
     const t: Travel = { id: uid("t"), date, memberId: s.me.id, category, detail: detail.trim(), amount: Number(amount), caseId, link, createdAt: nowStamp().slice(0, 10) };
     s.addTravel(t);
-    s.log({ module: "差旅費", caseId, target: `${t.detail} ${money(t.amount)}`, action: link === "系統建議已確認" ? "確認系統建議歸戶" : link === "人工手動指定" ? "手動指定案件" : "新增（未歸戶）" });
+    s.log({ module: "差旅費", refId: t.id, caseId, target: `${t.detail} ${money(t.amount)}`, action: link === "系統建議已確認" ? "確認系統建議歸戶" : link === "人工手動指定" ? "手動指定案件" : "新增（未歸戶）" });
     s.toast(caseId ? `已填報並歸戶至 ${caseId}` : "已填報，標記為未歸戶", caseId ? "success" : "info");
     onClose();
   };

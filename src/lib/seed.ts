@@ -919,7 +919,7 @@ export const payablesSeed: Payable[] = [
 
 export const auditSeed: AuditEntry[] = [
   { id: "a1", time: "2026/10/28 17:40", actor: "admin1", module: "案件", caseId: "HECHANG-HACCP-2026-01", target: "里程碑", action: "登記取證日", before: "—", after: "2026/10/20" },
-  { id: "a2", time: "2026/10/28 16:12", actor: "con3", module: "差旅費", caseId: "SINJI-ISCC-2026-01", target: "高鐵 台北－台南 來回 $2,980", action: "確認系統建議歸戶" },
+  { id: "a2", time: "2026/10/28 16:12", actor: "con3", module: "差旅費", caseId: "SINJI-ISCC-2026-01", refId: "t1", target: "高鐵 台北－台南 來回 $2,980", action: "確認系統建議歸戶" },
   { id: "a3", time: "2026/10/27 18:20", actor: "con1", module: "案件", caseId: "TAIYA-林園廠-ISO14064-2026-01", target: "審核", action: "送出內容審核" },
   { id: "a4", time: "2026/10/27 10:15", actor: "exec1", module: "案件", caseId: "CHENGYING-FSC-2026-01", target: "審核", action: "核價核可", before: "核價審核中", after: "已報價待回簽" },
   { id: "a5", time: "2026/10/27 10:05", actor: "admin2", module: "案件", caseId: "WEIXIN-SMETA-2026-01", target: "案件", action: "建立案件", after: "WEIXIN-SMETA-2026-01" },

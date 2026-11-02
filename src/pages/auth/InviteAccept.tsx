@@ -38,7 +38,7 @@ export function InviteAccept() {
           <p className="mt-2 text-[13.5px] leading-relaxed text-ink-500">
             <span className="font-medium text-ink-800">{displayName(inviter)}</span> 邀請你加入工作空間。
           </p>
-          <div className="mt-6 space-y-3 rounded-xl border border-ink-200 bg-white p-4 shadow-card">
+          <div className="glass-card mt-6 space-y-3 rounded-xl p-4">
             <div className="flex items-center justify-between text-[13px]">
               <span className="text-ink-500">受邀 Email</span>
               <span className="font-medium text-ink-900">{inv.email}</span>

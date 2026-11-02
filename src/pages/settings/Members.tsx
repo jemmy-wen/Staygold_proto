@@ -228,7 +228,7 @@ function InviteModal({ open, onClose }: { open: boolean; onClose: () => void }) 
             <MailCheck className="size-9 stroke-[1.5] text-brand-600" />
             <p className="mt-4 text-[16px] font-semibold text-ink-900">已寄送 {sent.length} 封邀請郵件</p>
           </div>
-          <div className="mt-5 divide-y divide-ink-100 rounded-xl border border-ink-200">
+          <div className="mt-5 divide-y divide-ink-100 overflow-hidden rounded-xl border border-ink-200">
             {sent.map((m) => (
               <div key={m.id} className="flex items-center gap-3 px-4 py-3">
                 <Avatar m={{ name: m.email, color: m.color }} size={30} />

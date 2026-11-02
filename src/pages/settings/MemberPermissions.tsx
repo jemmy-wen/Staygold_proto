@@ -151,7 +151,7 @@ export function MemberDrawer({ id, onClose }: { id: string | null; onClose: () =
           {PERM_GROUPS.map((g) => (
             <section key={g.title}>
               <p className="mb-2 px-1 text-[12.5px] font-semibold text-ink-900">{g.title}</p>
-              <div className="divide-y divide-ink-100 rounded-xl border border-ink-200">
+              <div className="divide-y divide-ink-100 overflow-hidden rounded-xl border border-ink-200">
                 {g.items.map((i) => {
                   const parentOff = !!i.parent && !draft[i.parent];
                   const on = draft[i.key] === true;

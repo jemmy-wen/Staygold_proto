@@ -47,7 +47,7 @@ export function Onboarding() {
         {step === 1 ? (
           <div className="w-[560px] animate-rise">
             <h1 className="text-[24px] font-semibold tracking-tight text-ink-900">歡迎加入，先設定你的個人資料</h1>
-            <div className="mt-8 rounded-2xl border border-ink-200 bg-white p-6 shadow-card">
+            <div className="glass-card mt-8 rounded-2xl p-6">
               <div className="flex items-center gap-4 border-b border-ink-100 pb-5">
                 <Avatar m={{ name: form.nickname || form.name || "?" }} size={52} />
                 <div>
@@ -87,7 +87,7 @@ export function Onboarding() {
                 const on = g.items.filter((i) => inv.perms[i.key] === true && (!i.parent || inv.perms[i.parent] === true));
                 if (!on.length) return null;
                 return (
-                  <div key={g.title} className="rounded-2xl border border-ink-200 bg-white shadow-card">
+                  <div key={g.title} className="glass-card rounded-2xl">
                     <p className="border-b border-ink-100 px-5 py-3 text-[13px] font-semibold text-ink-900">{g.title}</p>
                     <div className="grid grid-cols-2 gap-x-6 gap-y-2.5 px-5 py-4">
                       {on.map((i) => (

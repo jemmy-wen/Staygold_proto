@@ -55,24 +55,25 @@ export function IconButton({ className, children, ...rest }: ButtonHTMLAttribute
   );
 }
 
-// 案件狀態只用三種色：簽約前（中性）、執行中到取證（主色）、續證期（琥珀）
-const STATUS_GROUP: Record<CaseStatus, "neutral" | "run" | "renew"> = {
+// 案件狀態依階段分色：接洽與結案（中性）、企劃與審核（藍）、等客戶或快到期（黃）、執行到取證（綠）；不用紅，狀態本身不是警示
+const STATUS_GROUP: Record<CaseStatus, "neutral" | "plan" | "wait" | "run"> = {
   洽詢中: "neutral",
-  企劃書撰寫中: "neutral",
-  內容審核中: "neutral",
-  核價審核中: "neutral",
-  已報價待回簽: "neutral",
+  企劃書撰寫中: "plan",
+  內容審核中: "plan",
+  核價審核中: "plan",
+  已報價待回簽: "wait",
   已簽約排課中: "run",
   輔導中: "run",
   稽核中: "run",
   已取證: "run",
   結案: "neutral",
-  續證期: "renew",
+  續證期: "wait",
 };
 const GROUP_STYLE = {
   neutral: { pill: "bg-ink-100 text-ink-700", stroke: "#6F7977" },
-  run: { pill: "bg-brand-50 text-brand-800", stroke: "#32716A" },
-  renew: { pill: "bg-amber-50 text-amber-800", stroke: "#D97706" },
+  plan: { pill: "bg-blue-50 text-blue-700", stroke: "#3984BD" },
+  wait: { pill: "bg-amber-50 text-amber-800", stroke: "#E0A93D" },
+  run: { pill: "bg-brand-50 text-brand-800", stroke: "#1C514B" },
 };
 export const statusStroke = (st: CaseStatus) => GROUP_STYLE[STATUS_GROUP[st]].stroke;
 
@@ -128,7 +129,7 @@ const TONE: Record<Tone, string> = {
   green: "bg-brand-50 text-brand-700",
   amber: "bg-amber-50 text-amber-700",
   red: "bg-rose-50 text-rose-700",
-  blue: "bg-ink-100 text-ink-600",
+  blue: "bg-blue-50 text-blue-700",
   violet: "bg-ink-100 text-ink-600",
 };
 export function Badge({ tone = "gray", children, className }: { tone?: Tone; children: ReactNode; className?: string }) {
@@ -301,7 +302,7 @@ export function Popover({
               exit={{ opacity: 0, scale: 0.97, transition: { duration: 0.1 } }}
               transition={{ duration: 0.16, ease }}
               className={cn(
-                "fixed z-[70] rounded-xl border border-ink-200 bg-white p-1.5 shadow-pop",
+                "glass-panel fixed z-[70] rounded-xl p-1.5",
                 scroll && "max-h-[min(480px,80vh)] overflow-y-auto",
                 pos.up ? (align === "right" ? "origin-bottom-right" : "origin-bottom-left") : align === "right" ? "origin-top-right" : "origin-top-left",
               )}
@@ -376,7 +377,7 @@ export function Modal({
           onMouseDown={onClose}
         >
           <motion.div
-            className="w-full rounded-2xl border border-ink-200 bg-white shadow-pop"
+            className="glass-panel w-full rounded-2xl"
             style={{ maxWidth: width }}
             initial={{ opacity: 0, y: 12, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -394,7 +395,7 @@ export function Modal({
               </button>
             </div>
             <div className="px-6 py-5">{children}</div>
-            {footer && <div className="flex items-center justify-end gap-2 rounded-b-2xl border-t border-ink-100 bg-ink-25 px-6 py-3.5">{footer}</div>}
+            {footer && <div className="flex items-center justify-end gap-2 rounded-b-2xl border-t border-ink-100 bg-ink-900/[.02] px-6 py-3.5">{footer}</div>}
           </motion.div>
         </motion.div>
       )}
@@ -434,7 +435,7 @@ export function Drawer({
             onMouseDown={onClose}
           />
           <motion.aside
-            className="absolute bottom-2 right-2 top-2 flex flex-col overflow-hidden rounded-2xl border border-ink-200 bg-white shadow-pop"
+            className="glass-panel absolute bottom-2 right-2 top-2 flex flex-col overflow-hidden rounded-2xl"
             style={{ width }}
             initial={{ x: width + 24 }}
             animate={{ x: 0 }}
@@ -451,7 +452,7 @@ export function Drawer({
               </button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
-            {footer && <div className="flex items-center gap-2 border-t border-ink-100 bg-ink-25 px-6 py-3.5">{footer}</div>}
+            {footer && <div className="flex items-center gap-2 border-t border-ink-100 bg-ink-900/[.02] px-6 py-3.5">{footer}</div>}
           </motion.aside>
         </motion.div>
       )}
@@ -637,7 +638,7 @@ export function Tabs<T extends string>({ value, onChange, items, className }: { 
 export function Segmented<T extends string>({ value, onChange, items, size = "md" }: { value: T; onChange: (v: T) => void; items: { value: T; label: ReactNode }[]; size?: "sm" | "md" }) {
   const id = useId();
   return (
-    <div className="inline-flex rounded-lg border border-ink-200 bg-white p-0.5 shadow-card">
+    <div className={"glass-control inline-flex rounded-lg p-0.5"}>
       {items.map((i) => (
         <button
           key={i.value}
@@ -646,7 +647,7 @@ export function Segmented<T extends string>({ value, onChange, items, size = "md
           className={cn(
             "relative flex items-center gap-1.5 rounded-md font-medium transition-colors duration-150",
             size === "md" ? "px-3 py-1.5 text-[13px]" : "px-2.5 py-1 text-[12px]",
-            value === i.value ? "text-white" : "text-ink-500 hover:text-ink-800",
+            value === i.value ? "text-white" : "text-ink-700 hover:text-ink-900",
           )}
         >
           {value === i.value && <motion.span layoutId={`seg-${id}`} transition={spring} className="absolute inset-0 rounded-md bg-brand-500 shadow-card" />}
@@ -657,11 +658,11 @@ export function Segmented<T extends string>({ value, onChange, items, size = "md
   );
 }
 
-export function Card({ children, className, title, action, desc, pad = true }: { children: ReactNode; className?: string; title?: ReactNode; action?: ReactNode; desc?: ReactNode; pad?: boolean }) {
+export function Card({ children, className, title, action, desc, pad = true, glass }: { children: ReactNode; className?: string; title?: ReactNode; action?: ReactNode; desc?: ReactNode; pad?: boolean; glass?: boolean }) {
   return (
-    <section className={cn("rounded-xl border border-ink-200 bg-white shadow-card", className)}>
+    <section className={cn("overflow-hidden rounded-xl", glass ? "glass-surface" : "glass-card", title && "glass-arc glass-arc-corner", className)}>
       {title && (
-        <header className="flex min-h-[52px] items-center justify-between gap-3 border-b border-ink-100 px-5 py-3">
+        <header className={cn("flex items-center justify-between gap-3", glass ? "min-h-[46px] px-4 pb-2 pt-3" : "min-h-[52px] border-b border-ink-100 px-5 py-3")}>
           <div className="min-w-0">
             <h3 className="text-[14px] font-semibold text-ink-900">{title}</h3>
             {desc && <p className="mt-0.5 text-[12px] text-ink-500">{desc}</p>}
@@ -676,16 +677,16 @@ export function Card({ children, className, title, action, desc, pad = true }: {
 
 export function StatGroup({ items }: { items: { label: string; value: ReactNode; sub?: ReactNode; hint?: string; onClick?: () => void }[] }) {
   return (
-    <div className="grid rounded-xl border border-ink-200 bg-white shadow-card" style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}>
+    <div className="glass-card glass-arc grid rounded-xl" style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}>
       {items.map((s, i) => (
         <button
           key={s.label}
           type="button"
           onClick={s.onClick}
           disabled={!s.onClick}
-          className={cn("group px-5 py-[18px] text-left transition-colors duration-150 first:rounded-l-xl last:rounded-r-xl disabled:cursor-default", i > 0 && "border-l border-ink-100", s.onClick && "hover:bg-ink-25")}
+          className={cn("group px-5 py-[18px] text-left transition-colors duration-150 first:rounded-l-[11px] last:rounded-r-[11px] disabled:cursor-default", i > 0 && "border-l border-ink-100", s.onClick && "hover:bg-ink-25")}
         >
-          <div className="flex items-center gap-1.5 text-[13px] font-medium text-ink-600">
+          <div className="flex items-center gap-1.5 text-[13px] font-medium text-ink-700">
             {s.label}
             {s.hint && (
               <span title={s.hint}>
@@ -693,10 +694,10 @@ export function StatGroup({ items }: { items: { label: string; value: ReactNode;
               </span>
             )}
           </div>
-          <motion.div key={String(s.value)} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, ease }} className="mt-2 text-[28px] font-semibold leading-none tracking-tight text-ink-900 tabular-nums">
+          <motion.div key={String(s.value)} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, ease }} className={"mt-2 font-num text-[28px] font-semibold leading-none tracking-tight text-ink-900 tabular-nums"}>
             {s.value}
           </motion.div>
-          {s.sub && <div className="mt-2 flex items-center gap-1.5 text-[12px] text-ink-500">{s.sub}</div>}
+          {s.sub && <div className="mt-2 flex items-center gap-1.5 text-[12px] text-ink-600">{s.sub}</div>}
         </button>
       ))}
     </div>
@@ -726,7 +727,7 @@ export function Empty({ icon, title, desc, action }: { icon?: ReactNode; title: 
 
 export function PageHeader({ title, desc, actions, back }: { title: ReactNode; desc?: ReactNode; actions?: ReactNode; back?: ReactNode }) {
   return (
-    <div className="flex items-start justify-between gap-6 border-b border-ink-100 px-8 pb-5 pt-6">
+    <div className="flex items-start justify-between gap-6 border-b border-ink-900/[.06] px-8 pb-5 pt-6">
       <div className="min-w-0">
         {back}
         <h1 className="text-[22px] font-semibold tracking-tight text-ink-900">{title}</h1>
@@ -742,7 +743,7 @@ export const td = "h-14 whitespace-nowrap border-b border-ink-100 px-4 text-[13p
 
 export function Table({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div className={cn("overflow-x-auto rounded-xl border border-ink-200 bg-white shadow-card", className)}>
+    <div className={cn("glass-card overflow-x-auto rounded-xl", className)}>
       <table className="w-full border-separate border-spacing-0">{children}</table>
     </div>
   );

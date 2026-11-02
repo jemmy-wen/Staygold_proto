@@ -1,39 +1,26 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowRight, CircleCheck, Plus } from "lucide-react";
+import { ArrowRight, CircleCheck, Plus, TrendingUp } from "lucide-react";
 import { useStore } from "../lib/store";
-import type { Case } from "../lib/types";
-import { ACTIVE_STATUSES, AGING, TODAY, addDays, agingBucket, cn, contractTotal, daysUntil, fmtDate, inRange, iso, lineOf, money, openParam, periodState, toDate, weekRange, weekday, withTax } from "../lib/utils";
+import type { Case, CaseStatus } from "../lib/types";
+import { ACTIVE_STATUSES, AGING, STATUSES, TODAY, agingBucket, cn, contractTotal, daysUntil, fmtDate, inRange, lineOf, money, openParam, periodState, weekRange, weekday, withTax } from "../lib/utils";
 import { Avatar, Badge, Button, Card, Empty, Segmented, StatGroup, ease } from "../components/ui";
-import { openNotif } from "../components/layout";
-import { NotifIcon } from "./Notifications";
+import { NotifBell, openNotif } from "../components/layout";
+import { NotifIcon, NotifKind } from "./Notifications";
 import { NewCaseModal } from "./cases/NewCaseModal";
 
 type Range = "week" | "month" | "year";
 type Span = readonly [string, string];
 type Line = "all" | "ISCC" | "ISCC 以外";
 const RANGE_LABEL: Record<Range, string> = { week: "本週", month: "本月", year: "今年" };
-const PREV_LABEL: Record<Range, string> = { week: "上週", month: "上月", year: "去年" };
 
 const rangeOf = (r: Range): Span => (r === "week" ? weekRange() : r === "month" ? [TODAY.slice(0, 8) + "01", TODAY] : [TODAY.slice(0, 5) + "01-01", TODAY]);
-const prevRangeOf = (r: Range): Span => {
-  if (r === "week") {
-    const [a, b] = weekRange();
-    return [addDays(a, -7), addDays(b, -7)];
-  }
-  if (r === "month") {
-    const first = toDate(TODAY.slice(0, 8) + "01");
-    return [iso(new Date(first.getFullYear(), first.getMonth() - 1, 1)), addDays(iso(first), -1)];
-  }
-  const y = Number(TODAY.slice(0, 4)) - 1;
-  return [`${y}-01-01`, `${y}-12-31`];
-};
-
-const METRICS: { name: string; date: (c: Case) => string | undefined }[] = [
-  { name: "新增案件", date: (c) => c.createdAt.replace(/\//g, "-") },
-  { name: "拜訪", date: (c) => c.milestones.visit },
-  { name: "寄出企劃書", date: (c) => c.milestones.proposalSent },
-  { name: "簽約", date: (c) => c.milestones.signed },
+// 活動量底下標這批案件有多少已進到下一階段，依案件目前的狀態判斷，手動改狀態也算；只呈現事實，0 件不做警示
+const METRICS: { name: string; date: (c: Case) => string | undefined; next: string; reached: CaseStatus }[] = [
+  { name: "新增案件", date: (c) => c.createdAt.replace(/\//g, "-"), next: "進企劃", reached: "企劃書撰寫中" },
+  { name: "拜訪", date: (c) => c.milestones.visit, next: "進企劃", reached: "企劃書撰寫中" },
+  { name: "寄出企劃書", date: (c) => c.milestones.proposalSent, next: "簽約", reached: "已簽約排課中" },
+  { name: "簽約", date: (c) => c.milestones.signed, next: "開課", reached: "輔導中" },
 ];
 
 // 總覽：先看數字（手上幾件、這段期間做了多少），再看待辦、證書到期與帳務
@@ -47,7 +34,6 @@ export function Dashboard() {
   const cases = s.visibleCases.filter((c) => line === "all" || lineOf(c.item) === line);
   const active = cases.filter((c) => ACTIVE_STATUSES.includes(s.statusOf(c)));
   const r = rangeOf(range);
-  const prev = prevRangeOf(range);
   const label = RANGE_LABEL[range];
   const lineLabel = line === "all" ? "" : `${line}・`;
   const showRenewal = s.perms.casesCreate && s.visibleCases.some((c) => c.milestones.certExpiry && daysUntil(c.milestones.certExpiry) >= 0 && daysUntil(c.milestones.certExpiry) <= s.settings.renewDays[0]);
@@ -57,6 +43,8 @@ export function Dashboard() {
     label: company ? "進行中案件" : "我的進行中案件",
     value: active.length,
     sub: <>共 {cases.length} 件</>,
+    period: label,
+    added: cases.filter((c) => inRange(c.createdAt.replace(/\//g, "-"), r)).length,
     onClick: () => s.go({ page: "cases", filter: { ids: active.map((c) => c.id), label: `${lineLabel}${company ? "進行中案件" : "我的進行中案件"}` } }),
   };
 
@@ -64,7 +52,7 @@ export function Dashboard() {
     <div className="px-8 py-6">
       <div className="flex items-end justify-between">
         <div>
-          <p className="text-[13px] text-ink-500">
+          <p className="text-[13px] text-ink-600">
             {fmtDate(TODAY)} {weekday(TODAY)}
           </p>
           <h1 className="mt-1 text-[24px] font-semibold tracking-tight text-ink-900">總覽</h1>
@@ -97,24 +85,21 @@ export function Dashboard() {
               新增案件
             </Button>
           )}
+          <NotifBell />
         </div>
       </div>
 
       {company && (
-        <div className="mt-6 grid grid-cols-[minmax(0,1fr)_minmax(0,4fr)] gap-5">
-          <StatGroup items={[inProgress]} />
-          <StatGroup
+        <div className="mt-6 grid grid-cols-[minmax(0,1.35fr)_minmax(0,4fr)] gap-5">
+          <HeroStat {...inProgress} />
+          <MetricStrip
             items={METRICS.map((m) => {
               const now = cases.filter((c) => inRange(m.date(c), r));
-              const before = cases.filter((c) => inRange(m.date(c), prev)).length;
               return {
                 label: `${label}${m.name}`,
                 value: now.length,
-                sub: (
-                  <>
-                    {PREV_LABEL[range]} {before}
-                  </>
-                ),
+                advanced: now.filter((c) => STATUSES.indexOf(s.statusOf(c)) >= STATUSES.indexOf(m.reached)).length,
+                next: m.next,
                 onClick: now.length ? () => s.go({ page: "cases", filter: { ids: now.map((c) => c.id), label: `${lineLabel}${label}${m.name}` } }) : undefined,
               };
             })}
@@ -127,7 +112,7 @@ export function Dashboard() {
           <div className="min-w-0 space-y-5">
             {!company && (
               <div className="max-w-[240px]">
-                <StatGroup items={[inProgress]} />
+                <HeroStat {...inProgress} />
               </div>
             )}
             {showRenewal && <RenewalRadar cases={s.visibleCases} />}
@@ -143,6 +128,56 @@ export function Dashboard() {
   );
 }
 
+// 本期活動量：不加框，靠留白與細分隔線區分；可點的項目滑過才出現底色
+function MetricStrip({ items }: { items: { label: string; value: number; advanced: number; next: string; onClick?: () => void }[] }) {
+  return (
+    <div className="grid" style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}>
+      {items.map((m, i) => (
+        <button
+          key={m.label}
+          type="button"
+          onClick={m.onClick}
+          disabled={!m.onClick}
+          className={cn("relative flex flex-col justify-center rounded-lg px-5 py-[18px] text-left transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 disabled:cursor-default", m.onClick && "hover:bg-brand-100/60")}
+        >
+          {i > 0 && <span aria-hidden className="absolute inset-y-5 left-0 w-px bg-ink-900/[.08]" />}
+          <span className="block whitespace-nowrap text-[13px] font-medium text-ink-700">{m.label}</span>
+          <motion.span key={m.value} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, ease }} className="mt-2 block font-num text-[28px] font-semibold leading-none tracking-tight text-ink-900 tabular-nums">
+            {m.value}
+          </motion.span>
+          <span className={cn("mt-2 flex items-center gap-1 whitespace-nowrap text-[12px] tabular-nums", m.advanced ? "font-medium text-brand-700" : "text-ink-600")}>
+            {m.advanced > 0 && <TrendingUp className="size-3.5" />}
+            {m.advanced} 件已{m.next}
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// 最重要的數字用深色卡凸顯
+function HeroStat({ label, value, sub, period, added, onClick }: { label: string; value: number; sub: React.ReactNode; period: string; added: number; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} className="glass-dark glass-arc flex h-full w-full flex-col justify-center rounded-xl px-5 py-[18px] text-left transition duration-150 hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2">
+      <span className="block whitespace-nowrap text-[13px] font-medium text-white/80">{label}</span>
+      <span className="mt-2 flex items-baseline gap-1">
+        <motion.span key={value} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, ease }} className="font-num text-[36px] font-semibold leading-none tracking-tight text-white tabular-nums">
+          {value}
+        </motion.span>
+        <span className="text-[14px] font-medium text-white/80">件</span>
+      </span>
+      <span className="mt-2 flex items-center gap-2 whitespace-nowrap text-[12px] text-white/90">
+        <span className={cn("flex items-center gap-1 tabular-nums", added > 0 && "font-medium text-brand-100")}>
+          {added > 0 && <TrendingUp className="size-3.5" />}
+          {period}新增 {added} 件
+        </span>
+        <span aria-hidden className="h-3 w-px bg-white/25" />
+        {sub}
+      </span>
+    </button>
+  );
+}
+
 // 待辦：只列前幾則，完整清單在通知中心；有主欄內容時收在右側窄欄
 function Todos({ compact }: { compact?: boolean }) {
   const s = useStore();
@@ -151,22 +186,24 @@ function Todos({ compact }: { compact?: boolean }) {
   const shown = todos.slice(0, 6);
   return (
     <Card
+      glass
       title={
         <span className="flex items-baseline gap-2">
           待辦
-          <span className="text-[12.5px] font-normal text-ink-500">
+          <span className="text-[12.5px] font-normal text-ink-600">
             {todos.length} 則{unread ? `・未讀 ${unread}` : ""}
           </span>
         </span>
       }
       pad={false}
       action={
-        <button onClick={() => s.go({ page: "notifications" })} className="flex items-center gap-1 text-[12.5px] font-medium text-brand-600 hover:text-brand-700">
+        <button onClick={() => s.go({ page: "notifications" })} className="flex items-center gap-1 text-[12.5px] font-medium text-brand-700 hover:text-brand-900">
           全部 <ArrowRight className="size-3.5" />
         </button>
       }
     >
       {todos.length === 0 && <Empty icon={<CircleCheck />} title="目前沒有待辦事項" />}
+      <div className={cn("space-y-1.5 px-2", shown.length > 0 && "pb-2")}>
       {shown.map((n, i) => (
         <motion.button
           key={n.key}
@@ -177,18 +214,20 @@ function Todos({ compact }: { compact?: boolean }) {
             s.markRead(n.key);
             openNotif(s, n);
           }}
-          className="flex w-full items-start gap-2.5 border-b border-ink-100 px-4 py-2.5 text-left transition-colors last:border-b-0 hover:bg-ink-25"
+          className="glass-tile flex w-full items-start gap-2.5 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-brand-100/70"
         >
           <NotifIcon type={n.type} />
           <span className="min-w-0 flex-1">
             <span className={cn("block text-[12.5px] leading-snug text-ink-900", compact ? "line-clamp-2" : "truncate", n.status === "未讀" ? "font-semibold" : "font-medium")}>{n.title}</span>
-            <span className="mt-0.5 block truncate text-[11px] text-ink-400">
-              {n.type}・{n.createdAt.slice(5, 10)}
+            <span className="mt-0.5 flex items-center gap-1.5 truncate text-[11px] text-ink-600">
+              <NotifKind type={n.type} quiet />
+              <span>・{n.createdAt.slice(5, 10)}</span>
             </span>
           </span>
           {n.status === "未讀" && <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-brand-500" />}
         </motion.button>
       ))}
+      </div>
     </Card>
   );
 }
@@ -203,40 +242,43 @@ function RenewalRadar({ cases }: { cases: Case[] }) {
   if (!list.length) return null;
   return (
     <Card
+      glass
       title={
         <span className="flex items-baseline gap-2">
           證書到期
-          <span className="text-[12.5px] font-normal text-ink-500">
+          <span className="text-[12.5px] font-normal text-ink-600">
             {days} 天內 {list.length} 件
           </span>
         </span>
       }
       pad={false}
     >
+      <div className="space-y-1.5 px-2 pb-2">
       {list.map((c) => {
         const renewal = s.cases.find((x) => x.previousCase === c.id);
         const owner = s.memberOf(c.owner);
         return (
-          <button key={c.id} onClick={() => s.go({ page: "case", id: c.id })} className="flex w-full items-center gap-4 border-b border-ink-100 px-5 py-2.5 text-left transition-colors last:border-b-0 hover:bg-ink-25">
+          <button key={c.id} onClick={() => s.go({ page: "case", id: c.id })} className="glass-tile flex w-full items-center gap-4 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-brand-100/70">
             <span className="w-24 shrink-0 text-[12.5px] tabular-nums text-ink-700">{fmtDate(c.milestones.certExpiry)}</span>
-            <span className="w-20 shrink-0 text-[12.5px] tabular-nums text-ink-500">{daysUntil(c.milestones.certExpiry!)} 天後</span>
+            <span className={cn("w-20 shrink-0 text-[12.5px] tabular-nums", daysUntil(c.milestones.certExpiry!) <= 30 ? "font-medium text-amber-700" : "text-ink-600")}>{daysUntil(c.milestones.certExpiry!)} 天後</span>
             <span className="min-w-0 flex-1">
               <span className="block truncate text-[13px] font-medium text-ink-900">
                 {s.customerOf(c).short}
                 {c.site ? ` ${c.site}` : ""} {c.item}
               </span>
-              <span className="block truncate font-mono text-[11px] text-ink-400">{c.id}</span>
+              <span className="block truncate font-mono text-[11px] text-ink-600">{c.id}</span>
             </span>
-            <span className="flex w-28 shrink-0 items-center gap-1.5 text-[12px] text-ink-500">
+            <span className="flex w-28 shrink-0 items-center gap-1.5 text-[12px] text-ink-600">
               <Avatar m={owner} size={20} />
               <span className="truncate">{owner?.nickname ?? owner?.name}</span>
             </span>
             <span className="w-32 shrink-0 text-right">
-              {renewal ? <Badge tone="outline">已建立續證案件</Badge> : c.noRenew ? <Badge tone="gray">本次不續證</Badge> : <span className="text-[12px] text-ink-400">尚未建立續證案件</span>}
+              {renewal ? <Badge tone="outline">已建立續證案件</Badge> : c.noRenew ? <Badge tone="gray">本次不續證</Badge> : <span className="text-[12px] text-ink-600">尚未建立續證案件</span>}
             </span>
           </button>
         );
       })}
+      </div>
     </Card>
   );
 }
@@ -254,14 +296,14 @@ function Finance({ cases, range }: { cases: Case[]; range: Range }) {
   return (
     <section>
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-[13px] font-semibold text-ink-700">帳務（含稅）</h2>
+        <h2 className="text-[13px] font-semibold text-ink-800">帳務（含稅）</h2>
         {toFinance && (
-          <button onClick={toFinance} className="flex items-center gap-1 text-[12.5px] font-medium text-brand-600 hover:text-brand-700">
+          <button onClick={toFinance} className="flex items-center gap-1 text-[12.5px] font-medium text-brand-700 hover:text-brand-900">
             財務中心 <ArrowRight className="size-3.5" />
           </button>
         )}
       </div>
-      <div className="space-y-3">
+      <div className="space-y-5">
         <StatGroup
           items={[
             { label: `${label}簽約金額`, value: money(signed.reduce((n, c) => n + withTax(contractTotal(c)), 0)), sub: <>{signed.length} 件</> },
@@ -275,7 +317,8 @@ function Finance({ cases, range }: { cases: Case[]; range: Range }) {
   );
 }
 
-const AGING_COLOR = ["#D3DAD9", "#ABD4CF", "#7DB9B2", "#4F9A92", "#23504B"];
+// 帳齡：逾期越久主色越深，只有最嚴重的一段用紅
+const AGING_COLOR = ["#C8CFCE", "#ABD4CF", "#5AA69E", "#1C514B", "#BA3E44"];
 
 // 應收帳款依超過約定付款日的天數分段（PRD 3.2 應收帳款總覽：未收金額、逾期天數）
 function Aging({ ar }: { ar: { p: { amount: number }; st: { overdue: number } }[] }) {
@@ -287,22 +330,22 @@ function Aging({ ar }: { ar: { p: { amount: number }; st: { overdue: number } }[
   }
   const total = Math.max(1, buckets.reduce((n, b) => n + b.amt, 0));
   return (
-    <div className="rounded-xl border border-ink-200 bg-white px-5 py-4 shadow-card">
-      <p className="text-[13px] font-medium text-ink-600">應收帳款帳齡</p>
-      <div className="mt-3 flex h-2.5 overflow-hidden rounded-full bg-ink-100">
+    <div className="glass-surface glass-arc glass-arc-corner rounded-xl p-2">
+      <p className="px-2 pt-1 text-[13px] font-medium text-ink-700">應收帳款帳齡</p>
+      <div className="mx-2 mt-3 flex h-2.5 overflow-hidden rounded-full bg-ink-100">
         {buckets.map((a, i) => (
           <motion.div key={a.b} className="h-full" style={{ background: AGING_COLOR[i] }} initial={{ width: 0 }} animate={{ width: `${(a.amt / total) * 100}%` }} transition={{ duration: 0.5, ease }} />
         ))}
       </div>
-      <div className="mt-3 grid grid-cols-5 gap-3">
+      <div className="mt-3 grid grid-cols-5 gap-2">
         {buckets.map((a, i) => (
-          <div key={a.b}>
-            <p className="flex items-center gap-1.5 text-[12px] text-ink-500">
+          <div key={a.b} className="glass-tile rounded-lg px-3 py-2.5">
+            <p className="flex items-center gap-1.5 text-[12px] text-ink-600">
               <span className="size-2 rounded-full" style={{ background: AGING_COLOR[i] }} />
               {a.b}
             </p>
-            <p className="mt-1 text-[15px] font-semibold tabular-nums text-ink-900">{money(a.amt)}</p>
-            <p className="text-[11.5px] text-ink-400">{a.n} 筆</p>
+            <p className="mt-1 font-num text-[15px] font-semibold tabular-nums text-ink-900">{money(a.amt)}</p>
+            <p className="text-[11.5px] text-ink-600">{a.n} 筆</p>
           </div>
         ))}
       </div>

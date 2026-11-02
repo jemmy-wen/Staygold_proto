@@ -38,7 +38,7 @@ export function useStatusChange() {
       }
     >
       <p className="text-[13px] text-ink-600">{pending?.id}</p>
-      <div className="mt-3 divide-y divide-ink-100 rounded-lg border border-ink-200">
+      <div className="mt-3 divide-y divide-ink-100 overflow-hidden rounded-lg border border-ink-200">
         {pending?.mails.map((m) => (
           <div key={m.key} className="flex items-center gap-3 px-3.5 py-2.5 text-[13px]">
             <Mail className="size-4 shrink-0 text-ink-400" />

@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { Briefcase, Building2, ChevronRight, ChevronsUpDown, Mail, MapPin, Phone, Plus, Tag, UserRound } from "lucide-react";
 import { useStore } from "../lib/store";
 import { INDUSTRIES, REGIONS } from "../lib/seed";
+import { ActivityButton } from "../components/Activity";
 import { FilterChips, FilterMenu, Toolbar, pass, useFacets, type Facet } from "../components/filters";
 import { REFERRALS } from "../lib/customerFields";
 import type { Customer } from "../lib/types";
@@ -90,11 +91,14 @@ export function CustomerList() {
       <PageHeader
         title="客戶資料"
         actions={
-          s.perms.customersEdit && (
-            <Button variant="dark" icon={<Plus className="size-4" />} onClick={create}>
-              新增客戶
-            </Button>
-          )
+          <>
+            <ActivityButton title="客戶" match={(a) => a.module === "客戶"} />
+            {s.perms.customersEdit && (
+              <Button variant="dark" icon={<Plus className="size-4" />} onClick={create}>
+                新增客戶
+              </Button>
+            )}
+          </>
         }
       />
       <div className="px-8 py-5">
@@ -104,7 +108,7 @@ export function CustomerList() {
           count={`${list.length} 家客戶`}
         />
         <FilterChips facets={facets} f={f} />
-        <div className="overflow-hidden rounded-xl border border-ink-200 bg-white shadow-card">
+        <div className="glass-card overflow-hidden rounded-xl">
           <table className="w-full table-fixed border-separate border-spacing-0">
             <colgroup>
               <col />

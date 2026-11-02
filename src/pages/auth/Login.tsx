@@ -5,6 +5,7 @@ import { useStore } from "../../lib/store";
 import type { Member } from "../../lib/types";
 import { Avatar, Button, ease } from "../../components/ui";
 import { BrandLockup } from "../../components/brand";
+import { FlowGlass } from "../../components/FlowGlass";
 
 export function GoogleMark({ className = "size-4" }: { className?: string }) {
   return (
@@ -17,13 +18,12 @@ export function GoogleMark({ className = "size-4" }: { className?: string }) {
   );
 }
 
-const SERVICES = ["ISO", "FSC", "ISCC", "GRS", "SMETA", "EcoVadis", "HACCP", "FSSC 22000", "碳盤查"];
-
 // 登入與受邀頁共用的版面：左側為企業形象區塊
 export function AuthFrame({ children, aside }: { children: React.ReactNode; aside?: React.ReactNode }) {
   return (
     <div className="flex h-screen min-w-[1280px] bg-ink-50 p-2">
-      <div className="auth-gradient flex w-[44%] flex-col justify-between rounded-2xl p-12 text-white">
+      <div className="auth-flow flex w-[44%] flex-col justify-between rounded-2xl p-12 text-white">
+        <FlowGlass />
         <BrandLockup tone="dark" />
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease, delay: 0.1 }}>
           {aside ?? <BrandStatement />}
@@ -42,12 +42,7 @@ function BrandStatement() {
         <br />
         企業最閃亮的招牌
       </h1>
-      <p className="mt-4 text-[14px] leading-[1.7] text-white/80">做對的事，也能帶來商業價值。從國際驗證、碳管理到品牌策略，陪企業把永續規範轉化為競爭力。</p>
-      <div className="mt-6 flex flex-wrap gap-x-3.5 gap-y-1.5 text-[12.5px] text-white/70">
-        {SERVICES.map((s) => (
-          <span key={s}>{s}</span>
-        ))}
-      </div>
+      <p className="mt-4 text-[14px] leading-[1.7] text-white">做對的事，也能帶來商業價值。從國際驗證、碳管理到品牌策略，陪企業把永續規範轉化為競爭力。</p>
     </div>
   );
 }
@@ -63,7 +58,7 @@ export function GoogleChooser({ accounts, onPick, onOther }: { accounts: GoogleA
         <h2 className="mt-4 text-[20px] font-medium text-ink-900">選擇帳戶</h2>
         <p className="mt-1 text-[13px] text-ink-500">以繼續使用「恆永顧問內部系統」</p>
       </div>
-      <div className="mt-6 divide-y divide-ink-100 rounded-xl border border-ink-200">
+      <div className="mt-6 divide-y divide-ink-100 overflow-hidden rounded-xl border border-ink-200">
         {accounts.map((a) => (
           <button key={a.email} onClick={() => onPick(a)} className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-ink-25">
             <Avatar m={a.m ?? { name: a.name, color: "#5f6368" }} size={32} />

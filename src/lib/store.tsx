@@ -33,7 +33,7 @@ import type {
   Settings,
   Travel,
 } from "./types";
-import { caseStatus, deriveStatus, nowStamp, param, uid } from "./utils";
+import { STAGE_DEFAULT, caseStatus, deriveStatus, nowStamp, param, uid } from "./utils";
 
 // 從總覽帶入案件列表的條件：ids 為總覽已算好的案件，label 顯示在篩選列
 export type CaseFilter = { status?: CaseStatus[]; view?: string; ids?: string[]; label?: string; layout?: CaseLayout; group?: CaseGroup };
@@ -110,7 +110,17 @@ const statusPatch = (c: Case, status: CaseStatus, settings: Settings) => {
   return { ...(renewing ? { noRenew: false } : {}), ...(status === derived ? { manualStatus: undefined, manualBasis: undefined } : { manualStatus: status, manualBasis: derived }) };
 };
 
+const STAGE_KEY = "stage-colors";
+const loadStageColors = (): Record<string, string> => {
+  try {
+    return JSON.parse(localStorage.getItem(STAGE_KEY) ?? "{}");
+  } catch {
+    return {};
+  }
+};
+
 function useStoreValue() {
+  const [stageColors, setStageColors] = useState<Record<string, string>>(loadStageColors);
   const [state, setState] = useState<State>(initialState);
   const [screen, setScreen] = useState<Screen>(() => (param("screen") as Screen) ?? (param("as") ? "app" : "login"));
   const [userId, setUserId] = useState<string>(() => param("as") ?? "exec1");
@@ -335,6 +345,18 @@ function useStoreValue() {
     updateEvent: (id: string, patch: Partial<CalEvent>) =>
       setState((s) => ({ ...s, events: s.events.map((e) => (e.id === id ? { ...e, ...patch } : e)) })),
     addTravel: (t: Travel) => setState((s) => ({ ...s, travel: [t, ...s.travel] })),
+    stageColor: (stage: string) => stageColors[stage] ?? STAGE_DEFAULT[stage],
+    setStageColor: (stage: string, color: string | null) => {
+      const next = { ...stageColors };
+      if (color) next[stage] = color;
+      else delete next[stage];
+      setStageColors(next);
+      try {
+        localStorage.setItem(STAGE_KEY, JSON.stringify(next));
+      } catch {
+        /* 無法寫入時只影響本次 */
+      }
+    },
     updateTravel: (id: string, patch: Partial<Travel>) =>
       setState((s) => ({ ...s, travel: s.travel.map((t) => (t.id === id ? { ...t, ...patch } : t)) })),
     addPayable: (p: Payable) => setState((s) => ({ ...s, payables: [p, ...s.payables] })),

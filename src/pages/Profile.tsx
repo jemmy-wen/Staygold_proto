@@ -49,7 +49,7 @@ export function ProfilePage() {
 
   return (
     <div className="px-8 py-6">
-      <div className="overflow-hidden rounded-2xl border border-ink-200 bg-white shadow-card">
+      <div className="glass-card overflow-hidden rounded-2xl">
         <div className="h-36 bg-[radial-gradient(120%_140%_at_0%_0%,#23504B_0%,#32716A_35%,#7DB9B2_70%,#EEF6F5_100%)]" />
         <div className="flex items-start justify-between gap-6 px-10 pb-8">
           <div className="flex items-start gap-6">
@@ -92,7 +92,7 @@ export function ProfilePage() {
           </Row>
           {services.length > 0 && (
             <Row label="Google 服務連線">
-              <div className="divide-y divide-ink-100 rounded-xl border border-ink-200">
+              <div className="divide-y divide-ink-100 overflow-hidden rounded-xl border border-ink-200">
                 {services.map((x) => {
                   const st = googleOf(me, x.key);
                   return (

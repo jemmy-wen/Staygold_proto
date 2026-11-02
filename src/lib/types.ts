@@ -254,6 +254,8 @@ export type AuditEntry = {
   actor: string;
   module: "案件" | "客戶" | "財務" | "差旅費" | "成員與權限" | "系統設定" | "Email";
   caseId?: string;
+  // 同一筆資料的所有異動（例如一筆差旅費）：項目名稱可能被改，不能拿來比對
+  refId?: string;
   target: string;
   action: string;
   before?: string;

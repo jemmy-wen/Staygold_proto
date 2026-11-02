@@ -20,14 +20,14 @@ export function EmailTab({ c }: { c: Case }) {
     <div className="space-y-4">
       {suggested.length > 0 && <SuggestedBar c={c} list={suggested} />}
       {linked.length === 0 ? (
-        <div className="rounded-xl border border-ink-200 bg-white shadow-card">
+        <div className="glass-card rounded-xl">
           <Empty icon={<Mail />} title="還沒有關聯的信件" />
         </div>
       ) : s.mailView === "log" ? (
         <ContactLog c={c} linked={linked} />
       ) : (
         <div className="grid grid-cols-[320px_minmax(0,1fr)] items-start gap-4">
-          <aside className="sticky top-4 overflow-hidden rounded-xl border border-ink-200 bg-white shadow-card">
+          <aside className="glass-card sticky top-4 overflow-hidden rounded-xl">
             <p className="border-b border-ink-100 px-4 py-3 text-[13px] font-semibold text-ink-900">
               通聯紀錄
               <span className="ml-2 text-[12px] font-normal text-ink-500">
@@ -147,7 +147,7 @@ function ContactLog({ c, linked }: { c: Case; linked: EmailThread[] }) {
 
   return (
     <div className="grid grid-cols-[minmax(0,1fr)_272px] items-start gap-4">
-      <section className="min-w-0 overflow-hidden rounded-xl border border-ink-200 bg-white shadow-card">
+      <section className="glass-card min-w-0 overflow-hidden rounded-xl">
         <header className="flex h-12 items-center gap-2 border-b border-ink-100 px-5 text-[13px]">
           <span className="font-semibold text-ink-900">通聯紀錄</span>
           <span className="text-[12px] text-ink-500">
@@ -219,7 +219,7 @@ function ContactLog({ c, linked }: { c: Case; linked: EmailThread[] }) {
           </div>
         ))}
       </section>
-      <aside className="sticky top-4 overflow-hidden rounded-xl border border-ink-200 bg-white shadow-card">
+      <aside className="glass-card sticky top-4 overflow-hidden rounded-xl">
         <div className="px-4 py-3">
           <SearchInput value={filter?.kind === "search" ? filter.value : ""} onChange={(v) => setPicked(v.trim() ? { kind: "search", value: v } : null)} placeholder="搜尋關鍵字、主旨、人名、附件" />
           <p className="mb-2 mt-3 text-[12px] text-ink-500">出現過的關鍵字</p>
@@ -253,7 +253,7 @@ function SuggestedBar({ c, list }: { c: Case; list: EmailThread[] }) {
     s.toast(caseId === c.id ? "已加入本案通聯紀錄" : `已歸檔至 ${caseId}`);
   };
   return (
-    <div className="rounded-xl border border-ink-200 bg-white shadow-card">
+    <div className="glass-card rounded-xl">
       <button onClick={() => setExpanded((v) => !v)} className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-[13px] text-ink-800" aria-expanded={expanded}>
         <CircleAlert className="size-4 shrink-0 text-brand-500" />
         <span className="flex-1">
@@ -373,7 +373,7 @@ function ThreadReader({ t, c }: { t: EmailThread; c: Case }) {
   const by = s.memberOf(t.linkedBy);
   const messages = threadMessages(t, owner?.name ?? "");
   return (
-    <section className="min-w-0 rounded-xl border border-ink-200 bg-white shadow-card">
+    <section className="glass-card min-w-0 rounded-xl">
       <header className="flex items-start justify-between gap-4 border-b border-ink-100 px-6 py-4">
         <div className="min-w-0">
           <h3 className="text-[16px] font-semibold leading-snug text-ink-900">{t.subject}</h3>

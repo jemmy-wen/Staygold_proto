@@ -155,6 +155,24 @@ export const STATUS_PHASE: Record<CaseStatus, string> = {
   續證期: "續證",
 };
 
+// 流程階段的底色：以主色色階與相近色為基礎，使用者可自行調整（個人偏好，記在本機）
+export const STAGE_DEFAULT: Record<string, string> = {
+  接洽建檔: "#8A9493",
+  企劃與審核: "#3984BD",
+  簽約: "#E0A93D",
+  輔導執行: "#32716A",
+  稽核取證: "#5AA69E",
+  結案: "#6F7977",
+  續證: "#C98A5A",
+};
+export const STAGE_SWATCHES = ["#1C514B", "#32716A", "#5AA69E", "#6B9080", "#4F8FA8", "#3984BD", "#E0A93D", "#C98A5A", "#BA3E44", "#8A9493"];
+// 與白色混合，得到文字仍清楚的淡底
+export const stageTint = (hex: string, amount = 0.16) => {
+  const n = parseInt(hex.slice(1), 16);
+  const mix = (c: number) => Math.round(255 + (c - 255) * amount).toString(16).padStart(2, "0");
+  return `#${mix((n >> 16) & 255)}${mix((n >> 8) & 255)}${mix(n & 255)}`;
+};
+
 // 進行中：尚未取證的案件（已取證、結案、續證期另由續證雷達追蹤）
 export const ACTIVE_STATUSES: CaseStatus[] = STATUSES.filter((x) => x !== "已取證" && x !== "結案" && x !== "續證期");
 

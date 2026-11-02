@@ -45,25 +45,152 @@ td {
   animation: rise 0.25s ease-out both;
 }
 
-/* 登入頁左側形象區塊：主色系的柔焦漸層，左下保持深色讓白字清楚 */
-.auth-gradient {
+/* 登入頁左側區塊的底：流動漸層未載入或不支援 WebGL 時顯示 */
+.auth-flow {
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  background: #32716a;
+  background: linear-gradient(160deg, #1c403c 0%, #15302d 100%);
 }
-.auth-gradient::before {
+
+/* 總覽的毛玻璃：底圖靜止；大卡是帶色的半透明面板，內容放在較白的內層小卡，靠層次與柔陰影撐出玻璃感 */
+.glass-backdrop {
+  background: linear-gradient(180deg, rgba(90, 166, 158, 0.05) 0%, #ffffff 52%), #ffffff;
+}
+.glass-surface {
+  background: rgba(241, 247, 246, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 0 0 1px rgba(21, 48, 45, 0.04), 0 10px 30px rgba(21, 48, 45, 0.07), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  -webkit-backdrop-filter: blur(20px) saturate(1.3);
+  backdrop-filter: blur(20px) saturate(1.3);
+}
+.glass-tile {
+  background-color: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 0 0 1px rgba(21, 48, 45, 0.03), 0 1px 2px rgba(21, 48, 45, 0.05);
+}
+.glass-control {
+  background: rgba(255, 255, 255, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  box-shadow: 0 1px 2px rgba(21, 48, 45, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  -webkit-backdrop-filter: blur(14px) saturate(1.3);
+  backdrop-filter: blur(14px) saturate(1.3);
+}
+.glass-dark {
+  background: linear-gradient(145deg, rgba(35, 80, 75, 0.94) 0%, rgba(21, 48, 45, 0.96) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 8px 24px rgba(21, 48, 45, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  -webkit-backdrop-filter: blur(22px) saturate(1.3);
+  backdrop-filter: blur(22px) saturate(1.3);
+}
+/* 一般頁面的卡片：結構不變，換成半透明白、細亮邊與柔陰影；背後是靜止底色，不需要模糊，長列表捲動也不吃效能 */
+.glass-card {
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 0 1px rgba(21, 48, 45, 0.05), 0 8px 24px rgba(21, 48, 45, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+/* 浮層：背後是真實內容，才用模糊；不透明度高，內容不受背後影響 */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 0 0 1px rgba(21, 48, 45, 0.06), 0 16px 40px rgba(21, 48, 45, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  backdrop-filter: blur(24px) saturate(1.4);
+}
+/* 區塊的弧形裝飾：大圓從右側切入，大小隨卡片高度等比例；顏色跟著卡片的底色走，只放在底層，不擋文字 */
+.glass-arc {
+  --arc-from: rgba(90, 166, 158, 0.16);
+  --arc-to: rgba(90, 166, 158, 0.02);
+  --arc-edge: rgba(28, 81, 75, 0.08);
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+.glass-arc::before {
   content: "";
   position: absolute;
-  inset: -15%;
   z-index: -1;
-  background-color: #32716a;
-  background-image:
-    radial-gradient(34% 30% at 86% 16%, #d5eae7 0%, rgba(213, 234, 231, 0) 100%),
-    radial-gradient(40% 44% at 92% 50%, #7db9b2 0%, rgba(125, 185, 178, 0) 100%),
-    radial-gradient(46% 38% at 38% 14%, #4f9a92 0%, rgba(79, 154, 146, 0) 100%),
-    radial-gradient(66% 58% at 22% 70%, #15302d 0%, rgba(21, 48, 45, 0) 100%);
-  filter: blur(48px);
+  top: 50%;
+  right: 0;
+  height: 240%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--arc-from) 0%, var(--arc-to) 62%);
+  box-shadow: inset 0 0 0 1px var(--arc-edge);
+  transform: translate(64%, -28%);
+  pointer-events: none;
+}
+/* 高度不固定的面板：圓固定大小，收在右上角 */
+.glass-arc-corner::before {
+  top: 0;
+  height: 200px;
+  transform: translate(36%, -56%);
+}
+.glass-arc.glass-dark {
+  --arc-from: rgba(255, 255, 255, 0.15);
+  --arc-to: rgba(255, 255, 255, 0.03);
+  --arc-edge: rgba(255, 255, 255, 0.16);
+}
+.glass-arc.glass-dark::before {
+  transform: translate(74%, -28%);
+}
+/* 不支援模糊，或使用者要求降低透明度、提高對比時，一律退回實心 */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass-panel {
+    background: #fff;
+    border-color: #e0e5e4;
+  }
+  .glass-surface {
+    background: #f4f6f6;
+    border-color: #e0e5e4;
+  }
+  .glass-control {
+    background: #fff;
+    border-color: #e0e5e4;
+  }
+  .glass-dark {
+    background: #1c403c;
+  }
+}
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .glass-arc::before {
+    display: none;
+  }
+  .glass-backdrop {
+    background: #f4f6f6;
+  }
+  .glass-surface {
+    background: #f4f6f6;
+    border-color: #c8cfce;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .glass-tile {
+    background-color: #fff;
+  }
+  .glass-card,
+  .glass-panel {
+    background: #fff;
+    border-color: #c8cfce;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .glass-control {
+    background: #fff;
+    border-color: #c8cfce;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .glass-dark {
+    background: #15302d;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/* 系統外框：sidebar 流動漸層未載入或不支援 WebGL 時的底，內容圓角框外保持深色 */
+.shell-gradient {
+  background-color: #15302d;
+  background-image: radial-gradient(260px 380px at 0% 0%, #32716a 0%, rgba(50, 113, 106, 0) 100%);
 }
 
 /* 數字欄位不顯示瀏覽器的上下箭頭，避免儲存格內容被擠壓 */

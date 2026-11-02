@@ -116,7 +116,7 @@ export function ProgressPanel({ c, goReview }: { c: Case; goReview: () => void }
   const [target, setTarget] = useState<CaseStatus | null>(null);
   const suggestion = statusSuggestion(c, s.settings);
   const cand = milestoneCandidates(c, s.customerOf(c), s.events);
-  const color = "#32716A";
+  const color = statusStroke(st);
   // 收合狀態記在本機，下次打開案件頁沿用
   const [open, setOpenState] = useState(() => {
     try {
@@ -180,7 +180,7 @@ export function ProgressPanel({ c, goReview }: { c: Case; goReview: () => void }
   );
 
   return (
-    <div className="rounded-xl border border-ink-200 bg-white shadow-card">
+    <div className="glass-card overflow-hidden rounded-xl">
       <AnimatePresence initial={false}>
         {open && (
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.22, ease }} className="overflow-hidden">
@@ -496,7 +496,7 @@ function JumpModal({ c, target, onClose }: { c: Case; target: CaseStatus; onClos
         {missing.length > 0 && (
           <div>
             <p className="mb-1.5 text-[12.5px] font-medium text-ink-600">尚未登記的日期</p>
-            <div className="divide-y divide-ink-100 rounded-xl border border-ink-200">
+            <div className="divide-y divide-ink-100 overflow-hidden rounded-xl border border-ink-200">
               {missing.map((f) => (
                 <div key={f.key} className="grid grid-cols-[minmax(0,1fr)_160px] items-center gap-3 px-3.5 py-2.5">
                   <span className="text-[13px] text-ink-800">
@@ -512,7 +512,7 @@ function JumpModal({ c, target, onClose }: { c: Case; target: CaseStatus; onClos
         {mails.length > 0 && (
           <div>
             <p className="mb-1.5 text-[12.5px] font-medium text-ink-600">會寄出 Email</p>
-            <div className="divide-y divide-ink-100 rounded-xl border border-ink-200">
+            <div className="divide-y divide-ink-100 overflow-hidden rounded-xl border border-ink-200">
               {mails.map((m) => (
                 <div key={m.key} className="flex items-center gap-3 px-3.5 py-2.5 text-[13px]">
                   <Mail className="size-4 shrink-0 text-ink-400" />

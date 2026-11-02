@@ -56,7 +56,7 @@ export function RelationGraph({ customerId }: { customerId: string; compact?: bo
         const l = latest(e.other);
         return (
           <motion.div key={e.r.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, ease, delay: i * 0.04 }} className="group relative w-full max-w-[300px]" style={{ height: ROW }}>
-            <button onClick={() => s.go({ page: "customer", id: e.other.id })} className="flex h-full w-full items-center gap-3 rounded-xl border border-ink-200 bg-white px-4 text-left shadow-card transition-colors hover:border-brand-300 hover:bg-brand-50/30">
+            <button onClick={() => s.go({ page: "customer", id: e.other.id })} className="glass-card flex h-full w-full items-center gap-3 rounded-xl px-4 text-left transition-colors hover:border-brand-300 hover:bg-brand-50/30">
               <span className="min-w-0 flex-1">
                 <span className="flex items-center gap-1.5">
                   <span className="truncate text-[13px] font-semibold text-ink-900">{e.other.short}</span>

@@ -47,11 +47,35 @@ const ICONS: Record<NotifType, React.ReactNode> = {
 };
 
 
-// 通知圖示：依類型換圖示，顏色一律中性
+// 通知圖示維持中性；性質用類型文字的顏色與實心圓點表示：紅＝已發生的問題、黃＝等待或快到期、藍＝要處理的一般事項
+const NOTIF_TONE: Partial<Record<NotifType, { text: string; dot: string }>> = {
+  收款逾期: { text: "text-rose-600", dot: "bg-rose-500" },
+  審核退回: { text: "text-rose-600", dot: "bg-rose-500" },
+  待回簽: { text: "text-amber-700", dot: "bg-amber-500" },
+  堂數不符: { text: "text-amber-700", dot: "bg-amber-500" },
+  尚未申請發票: { text: "text-amber-700", dot: "bg-amber-500" },
+  差旅費未歸戶: { text: "text-amber-700", dot: "bg-amber-500" },
+  續證準備: { text: "text-amber-700", dot: "bg-amber-500" },
+  續證再提醒: { text: "text-amber-700", dot: "bg-amber-500" },
+  證書即將到期: { text: "text-amber-700", dot: "bg-amber-500" },
+};
+
 export function NotifIcon({ type, done }: { type: NotifType; done?: boolean }) {
   return (
-    <span className={cn("mt-0.5 shrink-0 [&>svg]:size-4 [&>svg]:stroke-[1.75]", done ? "text-ink-300" : "text-ink-400")}>
+    <span className={cn("mt-0.5 shrink-0 [&>svg]:size-4 [&>svg]:stroke-[1.75]", done ? "text-ink-300" : "text-ink-500")}>
       {ICONS[type]}
+    </span>
+  );
+}
+
+// quiet：總覽用，文字維持中性，只有已發生的問題與快到期的事項留圓點
+export function NotifKind({ type, done, quiet }: { type: NotifType; done?: boolean; quiet?: boolean }) {
+  const special = NOTIF_TONE[type];
+  const tone = special ?? { text: "text-blue-600", dot: "bg-blue-500" };
+  return (
+    <span className={cn("inline-flex items-center gap-1.5 font-medium", done ? "text-ink-500" : quiet ? "font-normal text-ink-600" : tone.text)}>
+      {(!quiet || special) && <span className={cn("size-1.5 shrink-0 rounded-full", done ? "bg-ink-300" : tone.dot)} />}
+      {type}
     </span>
   );
 }
@@ -84,7 +108,7 @@ export function NotificationCenter() {
             className="flex-1"
           />
         </div>
-        <div className="mt-4 overflow-hidden rounded-xl border border-ink-200 bg-white shadow-card">
+        <div className="glass-card mt-4 overflow-hidden rounded-xl">
           {list.length === 0 && <Empty icon={<CircleCheck />} title={tab === "已完成" ? "還沒有已完成的通知" : "沒有需要處理的通知"} />}
           <AnimatePresence initial={false}>
             {list.map((n) => (
@@ -115,7 +139,7 @@ function NotifRow({ n, onPreview }: { n: Notif; onPreview: () => void }) {
         </div>
         <p className="mt-0.5 text-[12.5px] text-ink-500">{n.desc}</p>
         <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11.5px] text-ink-400">
-          <Badge tone="outline">{n.type}</Badge>
+          <NotifKind type={n.type} done={done} />
           {n.caseId && <span className="font-mono">{n.caseId}</span>}
           <span>・通知 {n.recipients.map((r) => RECIPIENT_LABEL[r]).join("、")}</span>
           <span>・{n.email ? "系統＋Email" : "系統"}</span>

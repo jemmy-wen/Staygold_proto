@@ -6,6 +6,7 @@ import { INDUSTRIES, REGIONS } from "../lib/seed";
 import type { Customer } from "../lib/types";
 import { CUSTOMER_FIELD_LABEL, REFERRALS, readCustomerField, writeCustomerField } from "../lib/customerFields";
 import { cn, daysUntil, fmtDate, folderL1 } from "../lib/utils";
+import { ActivityButton } from "../components/Activity";
 import { Avatar, Badge, Button, Card, Input, StatusPill, Tabs, ease, td, th } from "../components/ui";
 import { GridCell, useGridDraft, type Change } from "../components/grid";
 import { NewCaseModal } from "./cases/NewCaseModal";
@@ -77,6 +78,7 @@ export function CustomerDetail({ id, tab: initial }: { id: string; tab?: string 
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
+            <ActivityButton title="本客戶" match={(a) => (a.module === "客戶" && a.target === c.short) || cases.some((x) => x.id === a.caseId)} />
             {s.perms.casesCreate && cases.length > 0 && (
               <Button variant="outline" icon={<CopyPlus className="size-4" />} onClick={() => setCreating(true)}>
                 複製舊案件建立新案
@@ -116,7 +118,7 @@ export function CustomerDetail({ id, tab: initial }: { id: string; tab?: string 
 
       <motion.div key={tab} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, ease }} className="px-8 py-6">
         {tab === "cases" && (
-          <div className="overflow-hidden rounded-xl border border-ink-200 bg-white shadow-card">
+          <div className="glass-card overflow-hidden rounded-xl">
             <table className="w-full border-separate border-spacing-0">
               <thead>
                 <tr>

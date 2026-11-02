@@ -3,9 +3,10 @@ import { AnimatePresence, motion } from "framer-motion";
 import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Filter, GanttChart, Kanban, List, Plus, Rows3, Search, X } from "lucide-react";
 import { useStore, type CaseFilter } from "../../lib/store";
 import type { Case, CaseFilters, CaseGroup, CaseLayout, CaseStatus, DateCond, DateField, SavedView } from "../../lib/types";
-import { STATUSES, STATUS_PHASE, TODAY, addDays, cn, contractTotal, fmtDate, lineOf, money, openParam, toDate, uid } from "../../lib/utils";
+import { STAGE_DEFAULT, STAGE_SWATCHES, STATUSES, STATUS_PHASE, TODAY, addDays, cn, contractTotal, fmtDate, lineOf, money, openParam, stageTint, toDate, uid } from "../../lib/utils";
 import { Avatar, Button, Empty, Input, MenuItem, OptionList, Popover, SearchInput, Segmented, Select, StatusIcon, StatusPill, ease, inputCls } from "../../components/ui";
 import { NewCaseModal } from "./NewCaseModal";
+import { ActivityButton } from "../../components/Activity";
 import { FilterChips, FilterMenu, Toolbar, type Facet, type FacetValue } from "../../components/filters";
 import { useStatusChange } from "../../components/StatusChange";
 
@@ -132,11 +133,14 @@ export function CaseList({ filter }: { filter?: CaseFilter }) {
     <div className="flex min-h-full flex-col">
       <div className="flex items-center justify-between gap-6 px-8 pb-3 pt-6">
         <h1 className="text-[22px] font-semibold tracking-tight text-ink-900">案件</h1>
-        {s.perms.casesCreate && (
-          <Button variant="dark" icon={<Plus className="size-4" />} onClick={() => setCreating(true)}>
-            新增案件
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          <ActivityButton title="案件" match={(a) => a.module === "案件" || a.module === "Email"} />
+          {s.perms.casesCreate && (
+            <Button variant="dark" icon={<Plus className="size-4" />} onClick={() => setCreating(true)}>
+              新增案件
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="flex items-center gap-1 border-b border-ink-100 px-8">
@@ -241,14 +245,14 @@ const caseValues = (c: Case, k: keyof CaseFilters, s: ReturnType<typeof useStore
   return { status: [s.statusOf(c)], item: [c.item], line: [lineOf(c.item)], member: [c.owner, ...c.coOwners], industry: [cu.industry], region: [cu.region], verifier: [c.verifier], year: [c.year] }[k];
 };
 
-type Group = { key: string; label: string; status?: CaseStatus; cases: Case[] };
+type Group = { key: string; label: string; status?: CaseStatus; stage?: string; cases: Case[] };
 // 看板依狀態分組時保留空欄，全部狀態都顯示
 function groupCases(list: Case[], group: CaseGroup, s: ReturnType<typeof useStore>, keepEmpty = false): Group[] {
   if (group === "none") return [{ key: "all", label: "全部", cases: list }];
-  if (group === "status") return STATUSES.map((st) => ({ key: st, label: st, status: st, cases: list.filter((c) => s.statusOf(c) === st) })).filter((g) => keepEmpty || g.cases.length);
+  if (group === "status") return STATUSES.map((st) => ({ key: st, label: st, status: st, stage: STATUS_PHASE[st], cases: list.filter((c) => s.statusOf(c) === st) })).filter((g) => keepEmpty || g.cases.length);
   if (group === "phase") {
     const phases = [...new Set(STATUSES.map((x) => STATUS_PHASE[x]))];
-    return phases.map((ph) => ({ key: ph, label: ph, cases: list.filter((c) => STATUS_PHASE[s.statusOf(c)] === ph) })).filter((g) => g.cases.length);
+    return phases.map((ph) => ({ key: ph, label: ph, stage: ph, cases: list.filter((c) => STATUS_PHASE[s.statusOf(c)] === ph) })).filter((g) => g.cases.length);
   }
   const keyOf = (c: Case) => (group === "item" ? c.item : group === "line" ? lineOf(c.item) : c.owner);
   return [...new Set(list.map(keyOf))].map((k) => ({ key: k, label: group === "owner" ? s.memberOf(k)?.name ?? k : k, cases: list.filter((c) => keyOf(c) === k) }));
@@ -339,13 +343,66 @@ function DatePanel({ dates, setDates }: { dates: DateCond[]; setDates: (fn: (d: 
 }
 
 function GroupHeader({ g, open, onToggle }: { g: Group; open: boolean; onToggle: () => void }) {
+  const s = useStore();
+  const stage = g.stage;
+  const color = stage ? s.stageColor(stage) : undefined;
   return (
-    <button onClick={onToggle} className="flex w-full items-center gap-2 rounded-lg px-1 py-1.5 text-left transition-colors hover:bg-ink-50">
-      <ChevronRight className={cn("size-3.5 text-ink-400 transition-transform duration-200", open && "rotate-90")} />
-      {g.status && <StatusIcon status={g.status} />}
-      <span className="text-[13px] font-semibold text-ink-800">{g.label}</span>
-      <span className="rounded-md bg-white px-1.5 text-[11.5px] tabular-nums text-ink-500 ring-1 ring-ink-200">{g.cases.length}</span>
-    </button>
+    <div className={cn("flex items-center gap-2 rounded-lg pr-2.5 transition-colors", !stage && "hover:bg-ink-50")} style={color ? { background: stageTint(color) } : undefined}>
+      <button onClick={onToggle} aria-expanded={open} className={cn("flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500", stage ? "h-10" : "py-1.5")}>
+        <ChevronRight className={cn("size-3.5 shrink-0 text-ink-600 transition-transform duration-200", open && "rotate-90")} />
+        {g.status && <StatusIcon status={g.status} />}
+        <span className="truncate text-[13px] font-semibold text-ink-900">{g.label}</span>
+        <span className="rounded-md bg-white px-1.5 text-[11.5px] tabular-nums text-ink-600 ring-1 ring-ink-900/10">{g.cases.length}</span>
+      </button>
+      {stage && color && <StageColorPicker stage={stage} color={color} />}
+    </div>
+  );
+}
+
+// 調整階段底色：同階段的狀態共用一個顏色
+function StageColorPicker({ stage, color }: { stage: string; color: string }) {
+  const s = useStore();
+  const custom = color !== STAGE_DEFAULT[stage];
+  return (
+    <Popover
+      align="right"
+      width={232}
+      scroll={false}
+      trigger={({ toggle }) => (
+        <button onClick={toggle} aria-label={`調整「${stage}」的底色`} title="調整底色" className="grid size-7 shrink-0 place-items-center rounded-md transition-colors hover:bg-white/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">
+          <span className="size-3.5 rounded-full ring-2 ring-white" style={{ background: color }} />
+        </button>
+      )}
+    >
+      {(close) => (
+        <div className="p-1.5">
+          <p className="text-[12.5px] font-semibold text-ink-900">{stage}的底色</p>
+          <p className="mt-0.5 text-[12px] text-ink-600">同階段的狀態都會套用，只影響你的畫面</p>
+          <div className="mt-2.5 grid grid-cols-5 gap-1.5">
+            {STAGE_SWATCHES.map((c) => (
+              <button key={c} onClick={() => s.setStageColor(stage, c)} aria-label={`使用 ${c}`} aria-pressed={c === color} className={cn("grid h-8 place-items-center rounded-md ring-1 ring-ink-900/10 transition hover:ring-ink-900/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500", c === color && "ring-2 ring-ink-900/60")} style={{ background: stageTint(c) }}>
+                <span className="size-3 rounded-full" style={{ background: c }} />
+              </button>
+            ))}
+          </div>
+          <label className="mt-2.5 flex h-8 cursor-pointer items-center gap-2 rounded-md px-1 text-[12.5px] text-ink-700 hover:bg-ink-50">
+            <input type="color" value={color} onChange={(e) => s.setStageColor(stage, e.target.value)} aria-label="自訂顏色" className="size-5 cursor-pointer appearance-none rounded border-0 bg-transparent p-0" />
+            自訂顏色
+          </label>
+          {custom && (
+            <button
+              onClick={() => {
+                s.setStageColor(stage, null);
+                close();
+              }}
+              className="mt-0.5 flex h-8 w-full items-center rounded-md px-1 text-left text-[12.5px] font-medium text-brand-700 hover:bg-ink-50"
+            >
+              恢復預設
+            </button>
+          )}
+        </div>
+      )}
+    </Popover>
   );
 }
 
@@ -379,7 +436,7 @@ function ListView({ groups }: { groups: Group[] }) {
             <GroupHeader g={g} open={open} onToggle={() => setClosed((x) => { const n = new Set(x); open ? n.add(g.key) : n.delete(g.key); return n; })} />
             <AnimatePresence initial={false}>
               {open && (
-                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.22, ease }} className="mt-2 overflow-hidden rounded-xl border border-ink-200 bg-white shadow-card">
+                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.22, ease }} className="glass-card mt-2 overflow-hidden rounded-xl">
                   <div className={cn("grid h-10 items-center gap-3 border-b border-ink-200 bg-ink-25 px-4 text-[12.5px] font-semibold text-ink-700", cols)}>
                     <span>客戶／案件編號</span>
                     <span>驗證項目</span>
@@ -486,12 +543,13 @@ function BoardView({ groups }: { groups: Group[] }) {
               const id = e.dataTransfer.getData("text/case");
               if (droppable && id) change.request(id, g.status!);
             }}
-            className={cn("flex min-h-[200px] w-[260px] shrink-0 flex-col rounded-xl bg-ink-50 p-2 transition-colors", over === g.key && "bg-brand-50 ring-2 ring-brand-500/40")}
+            style={g.stage ? { background: stageTint(s.stageColor(g.stage)) } : undefined}
+            className={cn("flex min-h-[200px] w-[260px] shrink-0 flex-col rounded-xl p-2 transition-colors", !g.stage && "bg-ink-50", over === g.key && "ring-2 ring-brand-500/40")}
           >
             <div className="flex items-center gap-2 px-2 py-1.5">
               {g.status && <StatusIcon status={g.status} />}
               <span className="truncate text-[12.5px] font-semibold text-ink-800">{g.label}</span>
-              <span className="ml-auto text-[12px] tabular-nums text-ink-400">{g.cases.length}</span>
+              <span className="ml-auto text-[12px] tabular-nums text-ink-600">{g.cases.length}</span>
             </div>
             <div className="mt-1 flex flex-col gap-2">
               {g.cases.map((c) => (
@@ -573,7 +631,7 @@ function GanttView({ groups }: { groups: Group[] }) {
   const ROW = 52;
 
   return (
-    <div className="overflow-hidden rounded-xl border border-ink-200 bg-white shadow-card">
+    <div className="glass-card overflow-hidden rounded-xl">
       <div className="flex items-center justify-end gap-4 border-b border-ink-100 px-4 py-2 text-[11.5px] text-ink-500">
         <span className="flex items-center gap-1.5">
           <span className="h-2 w-6 rounded-full bg-brand-500/80" />
@@ -710,7 +768,7 @@ function CalendarView({ cases }: { cases: Case[] }) {
     setMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
   };
   return (
-    <div className="overflow-hidden rounded-xl border border-ink-200 bg-white shadow-card">
+    <div className="glass-card overflow-hidden rounded-xl">
       <div className="flex items-center gap-2 border-b border-ink-100 px-4 py-2.5">
         <p className="text-[14px] font-semibold text-ink-900">
           {first.getFullYear()} 年 {first.getMonth() + 1} 月

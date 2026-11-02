@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowUpRight, Building2, CalendarDays, Check, Copy, CopyPlus, Ellipsis, FolderOpen, History, LayoutDashboard, Link2, Mail, UserRoundCog, Wallet } from "lucide-react";
+import { ArrowUpRight, Building2, CalendarDays, Check, Copy, CopyPlus, Ellipsis, FolderOpen, LayoutDashboard, Link2, Mail, UserRoundCog, Wallet } from "lucide-react";
 import { useStore } from "../../lib/store";
 import { createRenewal } from "../../lib/caseOps";
 import { STATUSES, STATUS_PHASE, cn, nowStamp } from "../../lib/utils";
@@ -11,10 +11,10 @@ import { EmailTab } from "./tabs/EmailTab";
 import { DocsTab } from "./tabs/DocsTab";
 import { ScheduleTab } from "./tabs/ScheduleTab";
 import { FinanceTab } from "./tabs/FinanceTab";
-import { HistoryTab } from "./tabs/HistoryTab";
+import { ActivityButton } from "../../components/Activity";
 import { CustomerTab } from "./tabs/CustomerTab";
 
-type Tab = "overview" | "email" | "docs" | "schedule" | "finance" | "customer" | "history";
+type Tab = "overview" | "email" | "docs" | "schedule" | "finance" | "customer";
 
 export function CaseDetail({ id, tab: initial }: { id: string; tab?: string }) {
   const s = useStore();
@@ -30,7 +30,7 @@ export function CaseDetail({ id, tab: initial }: { id: string; tab?: string }) {
   const pendingMail = s.threads.filter((t) => t.state === "suggested" && t.suggestedCaseIds?.includes(c.id)).length;
   const sessionsLinked = s.events.filter((e) => e.caseId === c.id && e.kind === "排課").length;
   // 從通知或連結指定到沒有權限的分頁時，改顯示概覽，不留空白頁
-  const hidden: Partial<Record<Tab, boolean>> = { email: !s.perms.caseEmail, docs: !s.perms.caseDocs, schedule: !s.perms.caseSchedule, finance: !s.perms.financeAmounts, history: !s.perms.audit };
+  const hidden: Partial<Record<Tab, boolean>> = { email: !s.perms.caseEmail, docs: !s.perms.caseDocs, schedule: !s.perms.caseSchedule, finance: !s.perms.financeAmounts };
   const current: Tab = hidden[tab] ? "overview" : tab;
 
   return (
@@ -92,6 +92,7 @@ export function CaseDetail({ id, tab: initial }: { id: string; tab?: string }) {
                 <ArrowUpRight className="size-3.5 text-ink-400" />
               </a>
             )}
+            <ActivityButton title="本案件" match={(a) => a.caseId === c.id} showCase={false} />
             <Popover
               align="right"
               width={220}
@@ -118,11 +119,6 @@ export function CaseDetail({ id, tab: initial }: { id: string; tab?: string }) {
                       }}
                     >
                       複製為續證案件
-                    </MenuItem>
-                  )}
-                  {s.perms.audit && (
-                    <MenuItem icon={<History />} onClick={() => (s.guarded(() => setTab("history")), close())}>
-                      檢視異動紀錄
                     </MenuItem>
                   )}
                 </>
@@ -154,7 +150,6 @@ export function CaseDetail({ id, tab: initial }: { id: string; tab?: string }) {
             { value: "schedule", label: <><CalendarDays />排課 {sessionsLinked}/{c.contractSessions || "—"}</>, hidden: !s.perms.caseSchedule },
             { value: "finance", label: <><Wallet />財務</>, hidden: !s.perms.financeAmounts },
             { value: "customer", label: <><Building2 />客戶</> },
-            { value: "history", label: <><History />異動紀錄</>, hidden: !s.perms.audit },
           ]}
         />
         {/* 給客戶比較方案用：浮在 tab 列右端，不佔排版空間 */}
@@ -171,7 +166,6 @@ export function CaseDetail({ id, tab: initial }: { id: string; tab?: string }) {
         {current === "schedule" && <ScheduleTab c={c} />}
         {current === "finance" && <FinanceTab c={c} />}
         {current === "customer" && <CustomerTab c={c} />}
-        {current === "history" && <HistoryTab c={c} />}
       </motion.div>
       <ReassignModal open={reassign} onClose={() => setReassign(false)} caseId={c.id} />
     </div>

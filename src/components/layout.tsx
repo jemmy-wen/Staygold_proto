@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Bell,
@@ -19,6 +19,8 @@ import {
   LayoutDashboard,
   LogOut,
   Mail,
+  PanelLeftClose,
+  PanelLeftOpen,
   RotateCcw,
   Search,
   Settings,
@@ -30,20 +32,52 @@ import { DEMO_ACCOUNTS, useStore, type Route } from "../lib/store";
 import { cn, openParam } from "../lib/utils";
 import { Avatar, Badge, Button, Field, Input, Kbd, MenuItem, Modal, Popover, Segmented, ease, spring } from "./ui";
 import { BrandMark } from "./brand";
+import { FlowGlass } from "./FlowGlass";
 import { SaveBar } from "./grid";
-import { NotifIcon } from "../pages/Notifications";
+import { NotifIcon, NotifKind } from "../pages/Notifications";
+
+const SidebarCollapsed = createContext(false);
+
+// 收合時的名稱提示；sidebar 收合時不裁切內容，提示才能浮到內容區上方
+function RailTip({ children }: { children: ReactNode }) {
+  return <span className="pointer-events-none absolute left-full z-20 ml-2.5 whitespace-nowrap rounded-md bg-ink-900 px-2 py-1 text-[12px] font-medium text-white opacity-0 shadow-pop transition-opacity duration-100 group-hover:opacity-100 group-focus-visible:opacity-100">{children}</span>;
+}
 
 function NavItem({ icon, label, active, count, onClick, strong }: { icon: ReactNode; label: string; active?: boolean; count?: number; onClick: () => void; strong?: boolean }) {
+  const collapsed = useContext(SidebarCollapsed);
+  const hasCount = count != null && count > 0;
   return (
     <button
       onClick={onClick}
-      className={cn("relative flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-[13.5px] transition-colors duration-150", active ? "font-semibold text-brand-700" : "text-ink-600 hover:bg-ink-50 hover:text-ink-900")}
+      aria-label={collapsed ? label : undefined}
+      className={cn("group relative flex h-9 w-full items-center gap-2.5 rounded-lg text-[13.5px] transition-colors duration-150", collapsed ? "px-[11.5px]" : "px-2.5", active ? "font-semibold text-brand-700" : "text-white/90 hover:bg-ink-50 hover:text-ink-900")}
     >
       {active && <motion.span layoutId="nav-active" transition={spring} className="absolute inset-0 rounded-lg bg-brand-50" />}
       <span className={cn("relative [&>svg]:size-[17px]", active ? "text-brand-600" : "text-ink-400")}>{icon}</span>
-      <span className="relative flex-1 truncate text-left">{label}</span>
-      {count != null && count > 0 && (
-        <span className={cn("relative rounded-md px-1.5 text-[11px] leading-5 tabular-nums", strong ? "bg-brand-500 text-white" : "bg-ink-100 text-ink-500")}>{count}</span>
+      {collapsed ? (
+        <>
+          {hasCount && strong && (
+            <span className={cn("absolute right-0.5 top-0.5 min-w-[15px] rounded-full px-1 text-center text-[10px] font-medium leading-[15px] tabular-nums", active ? "bg-brand-500 text-white" : "bg-white text-brand-700 group-hover:bg-brand-500 group-hover:text-white")}>{count}</span>
+          )}
+          <RailTip>
+            {label}
+            {hasCount ? ` ${count}` : ""}
+          </RailTip>
+        </>
+      ) : (
+        <>
+          <span className="relative flex-1 truncate text-left">{label}</span>
+          {hasCount && (
+            <span
+              className={cn(
+                "relative rounded-md px-1.5 text-[11px] leading-5 tabular-nums",
+                active ? (strong ? "bg-brand-500 text-white" : "bg-ink-100 text-ink-500") : strong ? "bg-white text-brand-700 group-hover:bg-brand-500 group-hover:text-white" : "bg-white/10 text-white group-hover:bg-ink-100 group-hover:text-ink-500",
+              )}
+            >
+              {count}
+            </span>
+          )}
+        </>
       )}
     </button>
   );
@@ -54,33 +88,63 @@ function Sidebar() {
   const { perms, route } = s;
   const p = route.page;
   const unread = s.myNotifs.filter((n) => n.status === "未讀").length;
-
+  // 收合狀態記在本機，下次打開沿用
+  const [collapsed, setCollapsedState] = useState(() => {
+    try {
+      return localStorage.getItem("sidebar-collapsed") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const toggle = () => {
+    setCollapsedState(!collapsed);
+    try {
+      localStorage.setItem("sidebar-collapsed", collapsed ? "0" : "1");
+    } catch {
+      /* 無法寫入時只影響本次 */
+    }
+  };
+  const toggleLabel = collapsed ? "展開側邊欄" : "收合側邊欄";
 
   return (
-    <aside className="flex h-full w-[252px] shrink-0 flex-col gap-4 overflow-y-auto border-r border-ink-200 bg-white px-3 py-3">
-      <div className="flex h-10 items-center gap-2.5 px-2.5">
-        <BrandMark size={28} />
-        <p className="truncate text-[15px] font-semibold tracking-tight text-ink-900">{s.settings.workspaceName}</p>
-      </div>
-      <nav className="flex flex-col gap-0.5">
-        <p className="px-2.5 pb-1.5 text-[11px] font-medium uppercase tracking-wider text-ink-400">主選單</p>
-        {perms.dashboard && <NavItem icon={<LayoutDashboard />} label="總覽" active={p === "dashboard"} onClick={() => s.go({ page: "dashboard" })} />}
-        {perms.cases && <NavItem icon={<Briefcase />} label="案件" active={p === "cases" || p === "case"} count={s.visibleCases.length} onClick={() => s.go({ page: "cases" })} />}
-        {perms.customers && <NavItem icon={<Building2 />} label="客戶資料" active={p === "customers" || p === "customer"} onClick={() => s.go({ page: "customers" })} />}
-        {perms.travel && <NavItem icon={<Car />} label="差旅費" active={p === "travel"} onClick={() => s.go({ page: "travel" })} />}
-        {perms.financeCenter && <NavItem icon={<Wallet />} label="財務中心" active={p === "finance"} onClick={() => s.go({ page: "finance" })} />}
-      </nav>
-      <div className="mx-2.5 h-px bg-ink-200" />
-      <nav className="flex flex-col gap-0.5">
-        <p className="px-2.5 pb-1.5 text-[11px] font-medium uppercase tracking-wider text-ink-400">工具</p>
-        <NavItem icon={<Bell />} label="通知中心" active={p === "notifications"} count={unread} strong onClick={() => s.go({ page: "notifications" })} />
-        {perms.audit && <NavItem icon={<History />} label="異動紀錄" active={p === "audit"} onClick={() => s.go({ page: "audit" })} />}
-      </nav>
-      <div className="mt-auto flex flex-col gap-0.5">
-        {(perms.members || perms.settings) && <NavItem icon={<Settings />} label="設定" active={p === "settings"} onClick={() => s.go({ page: "settings", tab: perms.members ? "members" : "notify" })} />}
-        <AccountCard />
-      </div>
-    </aside>
+    <SidebarCollapsed.Provider value={collapsed}>
+      <aside className={cn("relative z-10 flex h-full shrink-0 flex-col gap-4 px-3 py-3 transition-[width] duration-200 ease-out", collapsed ? "w-16" : "w-[252px] overflow-y-auto overflow-x-hidden")}>
+        <div className={cn("flex items-center gap-2.5", collapsed ? "flex-col" : "h-10 pl-2.5")}>
+          <span className={cn("flex items-center", collapsed && "h-10")}>
+            <BrandMark size={28} />
+          </span>
+          {!collapsed && <p className="min-w-0 flex-1 truncate text-[15px] font-semibold tracking-tight text-white">{s.settings.workspaceName}</p>}
+          <button
+            onClick={toggle}
+            aria-label={toggleLabel}
+            aria-expanded={!collapsed}
+            title={collapsed ? undefined : toggleLabel}
+            className={cn("group relative grid shrink-0 place-items-center rounded-lg text-white/60 transition-colors duration-150 hover:bg-ink-50 hover:text-ink-900 [&>svg]:size-[17px]", collapsed ? "h-9 w-full" : "size-8")}
+          >
+            {collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
+            {collapsed && <RailTip>{toggleLabel}</RailTip>}
+          </button>
+        </div>
+        <nav className="flex flex-col gap-0.5">
+          {!collapsed && <p className="px-2.5 pb-1.5 text-[11px] font-medium uppercase tracking-wider text-white/90">主選單</p>}
+          {perms.dashboard && <NavItem icon={<LayoutDashboard />} label="總覽" active={p === "dashboard"} onClick={() => s.go({ page: "dashboard" })} />}
+          {perms.cases && <NavItem icon={<Briefcase />} label="案件" active={p === "cases" || p === "case"} count={s.visibleCases.length} onClick={() => s.go({ page: "cases" })} />}
+          {perms.customers && <NavItem icon={<Building2 />} label="客戶資料" active={p === "customers" || p === "customer"} onClick={() => s.go({ page: "customers" })} />}
+          {perms.travel && <NavItem icon={<Car />} label="差旅費" active={p === "travel"} onClick={() => s.go({ page: "travel" })} />}
+          {perms.financeCenter && <NavItem icon={<Wallet />} label="財務中心" active={p === "finance"} onClick={() => s.go({ page: "finance" })} />}
+        </nav>
+        <div className="mx-2.5 h-px bg-white/10" />
+        <nav className="flex flex-col gap-0.5">
+          {!collapsed && <p className="px-2.5 pb-1.5 text-[11px] font-medium uppercase tracking-wider text-white/90">工具</p>}
+          <NavItem icon={<Bell />} label="通知中心" active={p === "notifications"} count={unread} strong onClick={() => s.go({ page: "notifications" })} />
+          {perms.audit && <NavItem icon={<History />} label="異動紀錄" active={p === "audit"} onClick={() => s.go({ page: "audit" })} />}
+        </nav>
+        <div className="mt-auto flex flex-col gap-0.5">
+          {(perms.members || perms.settings) && <NavItem icon={<Settings />} label="設定" active={p === "settings"} onClick={() => s.go({ page: "settings", tab: perms.members ? "members" : "notify" })} />}
+          <AccountCard />
+        </div>
+      </aside>
+    </SidebarCollapsed.Provider>
   );
 }
 
@@ -127,6 +191,7 @@ function RoleList({ close }: { close: () => void }) {
 function AccountCard() {
   const s = useStore();
   const [sub, setSub] = useState(openParam("roles"));
+  const collapsed = useContext(SidebarCollapsed);
   return (
     <>
       <Popover
@@ -139,14 +204,25 @@ function AccountCard() {
         trigger={({ toggle, open }) => (
           <button
             onClick={toggle}
-            className={cn("flex w-full items-center gap-2.5 rounded-xl border bg-white px-3 py-2.5 text-left shadow-card transition-colors duration-150 hover:bg-ink-25", open ? "border-ink-300" : "border-ink-200")}
+            aria-label={collapsed ? `${s.me.role}・${s.me.title}` : undefined}
+            className={cn("group relative flex items-center rounded-xl border bg-white/[0.06] text-left transition-colors duration-150 hover:bg-white/10", collapsed ? "size-10 justify-center" : "w-full gap-2.5 px-3 py-2.5", open ? "border-white/30" : "border-white/10")}
           >
             <Avatar m={s.me} size={32} />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-[13px] font-semibold text-ink-900">{s.me.role}</p>
-              <p className="truncate text-[11.5px] text-ink-500">{s.me.title}</p>
-            </div>
-            <ChevronsUpDown className="size-4 text-ink-400" />
+            {collapsed ? (
+              !open && (
+                <RailTip>
+                  {s.me.role}・{s.me.title}
+                </RailTip>
+              )
+            ) : (
+              <>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[13px] font-semibold text-white">{s.me.role}</p>
+                  <p className="truncate text-[11.5px] text-white/85">{s.me.title}</p>
+                </div>
+                <ChevronsUpDown className="size-4 text-white/70" />
+              </>
+            )}
           </button>
         )}
       >
@@ -319,8 +395,9 @@ export function NotifBell() {
                     {n.status === "未讀" && <span className="size-1.5 shrink-0 rounded-full bg-brand-500" />}
                   </span>
                   <span className="mt-0.5 line-clamp-1 block text-[12px] text-ink-500">{n.desc}</span>
-                  <span className="mt-1 block text-[11px] text-ink-400">
-                    {n.type}・{n.createdAt.slice(5)}
+                  <span className="mt-1 flex items-center gap-1.5 text-[11px] text-ink-500">
+                    <NotifKind type={n.type} />
+                    <span>・{n.createdAt.slice(5)}</span>
                   </span>
                 </span>
               </button>
@@ -392,7 +469,7 @@ function Crumbs() {
 
 function TopBar() {
   return (
-    <div className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-ink-200 bg-white px-8">
+    <div className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-ink-900/[.06] bg-white/50 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] px-8">
       <Crumbs />
       <div className="flex items-center gap-3">
         <SaveBar />
@@ -406,11 +483,13 @@ export function Shell({ children }: { children: ReactNode }) {
   const s = useStore();
   const key = JSON.stringify({ r: s.route.page, id: "id" in s.route ? s.route.id : undefined, u: s.me.id });
   return (
-    <div className="flex h-screen min-w-[1280px] bg-white">
+    <div className="shell-gradient relative isolate flex h-screen min-w-[1280px]">
+      <FlowGlass sidebar className="inset-y-0 left-0 h-full w-[268px]" />
       <Sidebar />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <TopBar />
-        <main className="min-h-0 flex-1 overflow-y-auto bg-ink-25">
+      <div className="glass-backdrop my-2 mr-2 flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl">
+        {/* 總覽以頁面標題取代頂列，通知鈴移到標題列右側 */}
+        {s.route.page !== "dashboard" && <TopBar />}
+        <main className="min-h-0 flex-1 overflow-y-auto">
           <motion.div key={key} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.28, ease }}>
             {children}
           </motion.div>
@@ -423,7 +502,7 @@ export function Shell({ children }: { children: ReactNode }) {
 export function Toasts() {
   const { toasts, dismissToast } = useStore();
   return (
-    <div className="pointer-events-none fixed bottom-5 right-5 z-[60] flex flex-col items-end gap-2">
+    <div className="pointer-events-none fixed bottom-5 left-1/2 z-[60] flex -translate-x-1/2 flex-col items-center gap-2">
       <AnimatePresence initial={false}>
         {toasts.map((t) => (
           <motion.div
@@ -431,7 +510,7 @@ export function Toasts() {
             layout
             initial={{ opacity: 0, y: 16, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, x: 24, transition: { duration: 0.16 } }}
+            exit={{ opacity: 0, y: 8, transition: { duration: 0.16 } }}
             transition={{ duration: 0.28, ease }}
             className="pointer-events-auto flex items-center gap-2.5 rounded-xl bg-ink-900 px-4 py-3 text-[13px] font-medium text-white shadow-pop"
           >

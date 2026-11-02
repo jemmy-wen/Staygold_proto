@@ -2,11 +2,12 @@ import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { CheckCircle2, CircleAlert, Download, FileSpreadsheet, Plus, Receipt, Users } from "lucide-react";
 import { useStore } from "../lib/store";
-import type { Case, Period } from "../lib/types";
+import type { Case, Payable, Period } from "../lib/types";
 import { TODAY, openParam, agingBucket, dueDateOf, cn, contractTotal, fmtDate, missingInvoice, money, periodState, triggerLabel, uid, withTax } from "../lib/utils";
 import { Avatar, Badge, Button, Checkbox, Empty, Field, Input, Modal, PageHeader, SearchInput, Segmented, Select, StatGroup, StatusPill, Tabs, ease, td, th } from "../components/ui";
 import { InvoiceModal, InvoicePill, PayPill, RequestCell, savePeriodChanges } from "../components/finance";
 import { GridCell, useGridDraft, type Change, type Grid } from "../components/grid";
+import { ActivityButton } from "../components/Activity";
 import { FilterChips, FilterMenu, Toolbar, pass, useFacets, type Facet } from "../components/filters";
 
 type Row = { c: Case; p: Period; st: ReturnType<typeof periodState> };
@@ -16,6 +17,7 @@ export function FinanceCenter({ tab: initial }: { tab?: string }) {
   const [tab, setTab] = useState<"todo" | "billing" | "payables">((initial as "todo") ?? "todo");
   const [exporting, setExporting] = useState(openParam("export"));
   const [newInvoice, setNewInvoice] = useState<{ caseId?: string } | null>(null);
+  const [newPayable, setNewPayable] = useState(false);
   const canAddInvoice = s.perms.financeRecord || s.perms.casesEdit;
   const rows: Row[] = useMemo(() => s.cases.flatMap((c) => c.periods.map((p) => ({ c, p, st: periodState(p, s.settings.payDays) }))), [s.cases, s.settings.payDays]);
   const todo = rows.filter((r) => r.st.invoice === "待開立");
@@ -31,14 +33,21 @@ export function FinanceCenter({ tab: initial }: { tab?: string }) {
         title="財務中心"
         actions={
           <>
-            {canAddInvoice && tab !== "payables" && (
-              <Button variant="outline" icon={<Plus className="size-4" />} onClick={() => setNewInvoice({})}>
-                新增發票
+            <ActivityButton title="財務" match={(a) => a.module === "財務"} />
+            {s.perms.exportExcel && tab !== "payables" && (
+              <Button icon={<FileSpreadsheet className="size-4" />} onClick={() => setExporting(true)}>
+                匯出待開發票清單
               </Button>
             )}
-            {s.perms.exportExcel && (
-              <Button variant="dark" icon={<FileSpreadsheet className="size-4" />} onClick={() => setExporting(true)}>
-                匯出待開發票清單
+            {/* 主要動作跟著分頁走：每個分頁都能新增自己的資料 */}
+            {canAddInvoice && tab !== "payables" && (
+              <Button variant="dark" icon={<Plus className="size-4" />} onClick={() => setNewInvoice({})}>
+                {tab === "todo" ? "新增開票申請" : "新增請款"}
+              </Button>
+            )}
+            {s.perms.payables && tab === "payables" && (
+              <Button variant="dark" icon={<Plus className="size-4" />} onClick={() => setNewPayable(true)}>
+                新增外聘顧問請款
               </Button>
             )}
           </>
@@ -70,7 +79,8 @@ export function FinanceCenter({ tab: initial }: { tab?: string }) {
         {tab === "payables" && <Payables />}
       </motion.div>
       {exporting && <ExportModal onClose={() => setExporting(false)} />}
-      {newInvoice && <NewInvoiceModal caseId={newInvoice.caseId} onClose={() => setNewInvoice(null)} />}
+      {newInvoice && <NewInvoiceModal caseId={newInvoice.caseId} request={tab === "todo"} onClose={() => setNewInvoice(null)} />}
+      {newPayable && <NewPayableModal onClose={() => setNewPayable(false)} />}
     </div>
   );
 }
@@ -93,7 +103,7 @@ function TodoList({ rows, onNew }: { rows: Row[]; onNew?: (caseId: string) => vo
             <p className="mb-2 text-[12.5px] font-medium text-ink-500">
               {g.title}・{g.list.length} 筆
             </p>
-            <div className="overflow-hidden rounded-xl border border-ink-200 bg-white shadow-card">
+            <div className="glass-card overflow-hidden rounded-xl">
               {g.list.map((r) => {
                 const cu = s.customerOf(r.c);
                 const ready = !!cu.invoiceTitle && !!cu.taxId && !!cu.invoiceAddress;
@@ -139,7 +149,7 @@ function TodoList({ rows, onNew }: { rows: Row[]; onNew?: (caseId: string) => vo
       {missing.length > 0 && (
         <div>
           <p className="mb-2 text-[12.5px] font-medium text-ink-500">已進入輔導階段、尚未申請任何一期・{missing.length} 件</p>
-          <div className="overflow-hidden rounded-xl border border-ink-200 bg-white shadow-card">
+          <div className="glass-card overflow-hidden rounded-xl">
             {missing.map((c) => {
               const cu = s.customerOf(c);
               const owner = s.memberOf(c.owner);
@@ -160,7 +170,7 @@ function TodoList({ rows, onNew }: { rows: Row[]; onNew?: (caseId: string) => vo
                   <StatusPill status={s.statusOf(c)} />
                   {onNew && (
                     <Button size="sm" variant="outline" onClick={() => onNew(c.id)}>
-                      新增發票
+                      新增開票申請
                     </Button>
                   )}
                 </div>
@@ -206,7 +216,7 @@ function BillingTable({ rows, grid }: { rows: Row[]; grid: Grid }) {
         count={`${list.length} 筆`}
       />
       <FilterChips facets={facets} f={f} />
-      <div className="overflow-x-auto rounded-xl border border-ink-200 bg-white shadow-card">
+      <div className="glass-card overflow-x-auto rounded-xl">
         <table className="w-full min-w-[1590px] table-fixed border-separate border-spacing-0">
           <colgroup>
             {cols.map(([h, w]) => (
@@ -285,6 +295,7 @@ function BillingTable({ rows, grid }: { rows: Row[]; grid: Grid }) {
   );
 }
 
+const PAY_ORDER: Record<Payable["status"], number> = { 待核准: 0, 已核准: 1, 已付款: 2 };
 const PAY_FIELDS: Record<string, string> = { desc: "請款內容", amount: "金額", invoiceNo: "發票號碼" };
 
 function Payables() {
@@ -299,12 +310,12 @@ function Payables() {
     });
     s.toast(`已儲存 ${changes.length} 項變更`);
   });
+  // 核准是這張表最重要的事：狀態與動作放最前面，待核准排最上面
   const cols: [string, number, boolean?][] = [
-    ["顧問", 150], ["案件", 200], ["請款內容", 220], ["請款日", 110], ["金額", 120, true], ["發票抬頭", 190], ["統一編號", 110], ["發票號碼", 140], ["收款帳戶", 200], ["狀態", 130], ["", 110],
+    ["狀態", 130], ["核准／付款", 110], ["顧問", 150], ["金額", 120, true], ["案件", 200], ["請款內容", 220], ["請款日", 110], ["發票抬頭", 190], ["統一編號", 110], ["發票號碼", 140], ["收款帳戶", 200],
   ];
   const plain = "h-11 border-b border-r border-ink-100 px-3 text-[13px]";
   const [q, setQ] = useState("");
-  const [adding, setAdding] = useState(false);
   const f = useFacets();
   const nameOf = (id: string) => s.memberOf(id)?.nickname ?? s.memberOf(id)?.name ?? id;
   const facets: Facet[] = [
@@ -313,24 +324,25 @@ function Payables() {
   ];
   const shown = s.payables.filter(
     (p) => pass(f.value, "status", p.status) && pass(f.value, "member", p.memberId) && (!q || [p.caseId, p.desc, nameOf(p.memberId), p.invoiceNo ?? ""].some((x) => x.toLowerCase().includes(q.toLowerCase()))),
-  );
+  ).sort((a, b) => PAY_ORDER[a.status] - PAY_ORDER[b.status] || b.requestDate.localeCompare(a.requestDate));
+  const pending = s.payables.filter((p) => p.status === "待核准");
   return (
     <div>
     <Toolbar
       search={<SearchInput value={q} onChange={setQ} placeholder="搜尋顧問、案件、請款內容" className="w-72" />}
       filter={<FilterMenu facets={facets} f={f} />}
       right={
-        can && (
-          <Button variant="outline" icon={<Plus className="size-4" />} onClick={() => setAdding(true)}>
-            新增請款
-          </Button>
+        pending.length > 0 && (
+          <span className="flex items-center gap-1.5 text-[12.5px] font-medium text-amber-700">
+            <span aria-hidden className="size-1.5 rounded-full bg-amber-500" />
+            {pending.length} 筆待核准・{money(pending.reduce((n, p) => n + p.amount, 0))}
+          </span>
         )
       }
       count={`${shown.length} 筆`}
     />
     <FilterChips facets={facets} f={f} />
-    {adding && <NewPayableModal onClose={() => setAdding(false)} />}
-    <div className="overflow-x-auto rounded-xl border border-ink-200 bg-white shadow-card">
+    <div className="glass-card overflow-x-auto rounded-xl">
       <table className="w-full min-w-[1680px] table-fixed border-separate border-spacing-0">
         <colgroup>
           {cols.map(([h, w], i) => (
@@ -356,32 +368,24 @@ function Payables() {
             return (
               <tr key={p.id}>
                 <td className={cn(plain, "pl-5")}>
-                  <span className="flex items-center gap-2 truncate">
-                    <Avatar m={m} size={22} />
-                    {m?.nickname ?? m?.name}
-                  </span>
+                  <Badge tone={p.status === "已付款" ? "green" : p.status === "已核准" ? "blue" : "amber"}>{p.status}</Badge>
+                  {p.paidDate && <span className="ml-1.5 text-[11.5px] text-ink-600">{fmtDate(p.paidDate).slice(5)}</span>}
                 </td>
-                <td className={cn(plain, "truncate font-mono text-[12px] text-ink-500")}>{p.caseId}</td>
-                {cell("desc", 2)}
-                <td className={cn(plain, "tabular-nums text-ink-600")}>{fmtDate(p.requestDate)}</td>
-                {cell("amount", 4, { type: "number", align: "right", format: (v) => money(Number(v)) })}
-                <td className={cn(plain, "truncate text-ink-600")}>{p.invoiceTitle}</td>
-                <td className={cn(plain, "tabular-nums text-ink-600")}>{p.taxId}</td>
-                {cell("invoiceNo", 7, { placeholder: "待補", className: "font-mono text-[12px]" })}
-                <td className={cn(plain, "truncate text-ink-600")}>{p.account}</td>
                 <td className={plain}>
-                  <Badge tone={p.status === "已付款" ? "green" : p.status === "已核准" ? "gray" : "amber"}>{p.status}</Badge>
-                  {p.paidDate && <span className="ml-1.5 text-[11.5px] text-ink-400">{fmtDate(p.paidDate).slice(5)}</span>}
-                </td>
-                <td className={cn(plain, "border-r-0 text-right")}>
                   {p.status === "待核准" && isExec && (
                     <Button
                       size="sm"
-                      variant="brand"
+                      variant="dark"
                       onClick={() => {
                         s.updatePayable(p.id, { status: "已核准" });
                         s.log({ module: "財務", caseId: p.caseId, target: `${m?.name} 請款 ${money(p.amount)}`, action: "核准顧問請款" });
-                        s.toast("已核准請款");
+                        s.toast("已核准請款", "success", {
+                          label: "復原",
+                          run: () => {
+                            s.updatePayable(p.id, { status: "待核准" });
+                            s.log({ module: "財務", caseId: p.caseId, target: `${m?.name} 請款 ${money(p.amount)}`, action: "復原核准" });
+                          },
+                        });
                       }}
                     >
                       核准
@@ -399,8 +403,23 @@ function Payables() {
                       登記付款
                     </Button>
                   )}
-                  {p.status === "待核准" && !isExec && <span className="text-[12px] text-ink-400">待核准</span>}
+                  {p.status === "待核准" && !isExec && <span className="text-[12px] text-ink-600">等主管核准</span>}
+                  {p.status === "已核准" && !can && <span className="text-[12px] text-ink-600">等財務付款</span>}
                 </td>
+                <td className={plain}>
+                  <span className="flex items-center gap-2 truncate">
+                    <Avatar m={m} size={22} />
+                    {m?.nickname ?? m?.name}
+                  </span>
+                </td>
+                {cell("amount", 3, { type: "number", align: "right", format: (v) => money(Number(v)) })}
+                <td className={cn(plain, "truncate font-mono text-[12px] text-ink-600")}>{p.caseId}</td>
+                {cell("desc", 5)}
+                <td className={cn(plain, "tabular-nums text-ink-600")}>{fmtDate(p.requestDate)}</td>
+                <td className={cn(plain, "truncate text-ink-600")}>{p.invoiceTitle}</td>
+                <td className={cn(plain, "tabular-nums text-ink-600")}>{p.taxId}</td>
+                {cell("invoiceNo", 9, { placeholder: "待補", className: "font-mono text-[12px]" })}
+                <td className={cn(plain, "border-r-0 truncate text-ink-600")}>{p.account}</td>
               </tr>
             );
           })}
@@ -500,7 +519,8 @@ function NewPayableModal({ onClose }: { onClose: () => void }) {
 }
 
 // 新增發票：財務不必等負責人申請。一期對應一張發票與一筆收款，所以是選一期還沒開立的，或新增一期；沒有發票號碼時先存成待開立
-function NewInvoiceModal({ caseId: initial, onClose }: { caseId?: string; onClose: () => void }) {
+// request：從開票待辦新增，只建立開票申請，發票號碼之後在「登記開立」填；其他入口可直接填號碼
+function NewInvoiceModal({ caseId: initial, request, onClose }: { caseId?: string; request?: boolean; onClose: () => void }) {
   const s = useStore();
   const can = s.perms.financeRecord;
   const firstOpen = (id?: string) => s.cases.find((x) => x.id === id)?.periods.find((p) => !p.invoiceNo);
@@ -561,14 +581,14 @@ function NewInvoiceModal({ caseId: initial, onClose }: { caseId?: string; onClos
       open
       onClose={onClose}
       width={560}
-      title="新增發票"
+      title={request ? "新增開票申請" : "新增請款"}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
             取消
           </Button>
           <Button variant="dark" disabled={!c || n <= 0} onClick={save}>
-            {number ? "新增發票" : "存為待開立"}
+            {request ? "送出申請" : number ? "新增請款" : "存為待開立"}
           </Button>
         </>
       }
@@ -609,7 +629,7 @@ function NewInvoiceModal({ caseId: initial, onClose }: { caseId?: string; onClos
             <Input value={n ? `${money(withTax(n))}${total ? `・${pct}%` : ""}` : ""} disabled />
           </Field>
         </div>
-        {can && (
+        {can && !request && (
           <>
             <div className="grid grid-cols-2 gap-3">
               <Field label="發票號碼">

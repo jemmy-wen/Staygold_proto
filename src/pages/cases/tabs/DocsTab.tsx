@@ -81,7 +81,7 @@ export function DocsTab({ c }: { c: Case }) {
           <span>你的 Google 帳號尚未加入這個資料夾的共用名單：可以看到檔名，開啟檔案時 Google 會請你向資料夾擁有者申請存取權。</span>
         </div>
       )}
-      <div className="overflow-hidden rounded-xl border border-ink-200 bg-white shadow-card">
+      <div className="glass-card overflow-hidden rounded-xl">
         <div className="flex items-center justify-between gap-4 border-b border-ink-100 px-5 py-3.5">
           <div className="flex min-w-0 items-center gap-2 text-[13px]">
             <FolderOpen className="size-4 text-ink-400" />
