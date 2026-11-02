@@ -1,8 +1,9 @@
 import { useState, type ReactNode } from "react";
 import { Check } from "lucide-react";
 import { displayName, useStore } from "../lib/store";
-import { PERM_GROUPS } from "../lib/perms";
-import { Badge, Input, inputCls } from "../components/ui";
+import { G_LABEL, G_SERVICES, PERM_GROUPS, googleOf } from "../lib/perms";
+import type { GConn, GService } from "../lib/types";
+import { Badge, Button, Input, inputCls } from "../components/ui";
 import { useLeaveGuard } from "../components/grid";
 import { cn, initials } from "../lib/utils";
 
@@ -31,6 +32,14 @@ export function ProfilePage() {
     },
     () => setF(init),
   );
+  // 只列出自己的權限會用到的服務；授權或中斷後立即生效（Prototype 以切換狀態模擬 Google 授權畫面）
+  const services = G_SERVICES.filter((x) => x.needs(me));
+  const connect = (key: GService, st: GConn) => {
+    s.updateMember(me.id, (m) => ({ ...m, google: { ...m.google, [key]: st } }));
+    const name = G_SERVICES.find((x) => x.key === key)?.name;
+    s.log({ module: "成員與權限", target: me.email, action: st === "connected" ? `授權 ${name}` : `中斷 ${name} 連線` });
+    s.toast(st === "connected" ? `已連線 ${name}` : `已中斷 ${name}`, st === "connected" ? "success" : "info");
+  };
   const field = (k: keyof typeof init, label: string, placeholder?: string) => (
     <label className="block">
       <span className="mb-1.5 block text-[12.5px] font-medium text-ink-600">{label}</span>
@@ -78,9 +87,38 @@ export function ProfilePage() {
             </div>
           </Row>
           <Row label="登入帳號">
-            <span className="mb-1.5 block text-[12.5px] font-medium text-ink-600">公司 Google 帳號</span>
+            <span className="mb-1.5 block text-[12.5px] font-medium text-ink-600">Google 帳號</span>
             <input value={me.email} disabled className={inputCls} />
           </Row>
+          {services.length > 0 && (
+            <Row label="Google 服務連線">
+              <div className="divide-y divide-ink-100 rounded-xl border border-ink-200">
+                {services.map((x) => {
+                  const st = googleOf(me, x.key);
+                  return (
+                    <div key={x.key} className="flex items-center gap-4 px-4 py-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="flex items-center gap-2 text-[13px] font-medium text-ink-900">
+                          {x.name}
+                          <Badge tone={st === "connected" ? "green" : st === "expired" ? "amber" : "gray"}>{G_LABEL[st]}</Badge>
+                        </p>
+                        <p className="mt-0.5 text-[12px] text-ink-500">{x.scope}</p>
+                      </div>
+                      {st === "connected" ? (
+                        <Button size="sm" variant="ghost" onClick={() => connect(x.key, "none")}>
+                          中斷連線
+                        </Button>
+                      ) : (
+                        <Button size="sm" onClick={() => connect(x.key, "connected")}>
+                          {st === "expired" ? "重新連線" : "授權"}
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </Row>
+          )}
           <Row label="權限">
             <div className="flex items-center gap-2 text-[13px]">
               <Badge tone="brand">{me.role}</Badge>

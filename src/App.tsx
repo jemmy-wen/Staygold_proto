@@ -3,7 +3,8 @@ import { Shell, Toasts } from "./components/layout";
 import { LeaveModal } from "./components/grid";
 import { Empty } from "./components/ui";
 import { StoreProvider, useStore } from "./lib/store";
-import { Login } from "./pages/auth/Login";
+import { Denied, Login } from "./pages/auth/Login";
+import { Setup } from "./pages/auth/Setup";
 import { InviteAccept } from "./pages/auth/InviteAccept";
 import { Onboarding } from "./pages/auth/Onboarding";
 import { Dashboard } from "./pages/Dashboard";
@@ -58,6 +59,8 @@ function Router() {
 function Root() {
   const s = useStore();
   if (s.screen === "login") return <Login />;
+  if (s.screen === "denied") return <Denied />;
+  if (s.screen === "setup") return <Setup />;
   if (s.screen === "invite") return <InviteAccept />;
   if (s.screen === "onboarding") return <Onboarding />;
   if (s.route.page === "gmail" && s.perms.gmail) return <GmailMock threadId={s.route.threadId} />;

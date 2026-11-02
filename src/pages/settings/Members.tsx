@@ -288,7 +288,7 @@ function InviteModal({ open, onClose }: { open: boolean; onClose: () => void }) 
           </div>
           <div>
             <p className="mb-1.5 text-[12.5px] font-medium text-ink-700">權限層級</p>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-4 gap-2">
               {ROLES.map((r) => (
                 <button
                   key={r}

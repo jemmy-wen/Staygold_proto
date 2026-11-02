@@ -1,4 +1,4 @@
-import type { Perms, RolePreset } from "./types";
+import type { GConn, GService, Member, Perms, RolePreset } from "./types";
 
 const NONE: Perms = {
   dashboard: false,
@@ -66,9 +66,18 @@ export const PRESETS: Record<RolePreset, Perms> = {
     travel: true,
     gmail: true,
   },
+  // 外部顧問：只看參與的案件與文件、排課，不碰客戶主檔、信件與差旅費；可再逐項打開（10/29 會議）
+  外部顧問: {
+    ...NONE,
+    dashboard: true,
+    cases: true,
+    casesScope: "own",
+    caseDocs: true,
+    caseSchedule: true,
+  },
 };
 
-export const ROLES: RolePreset[] = ["主管", "專員", "顧問"];
+export const ROLES: RolePreset[] = ["主管", "專員", "顧問", "外部顧問"];
 
 export type PermItem = {
   key: keyof Perms;
@@ -99,7 +108,7 @@ export const PERM_GROUPS: PermGroup[] = [
     items: [
       { key: "casesCreate", label: "建立案件", desc: "新增案件、複製舊案件建立續證案件", parent: "cases" },
       { key: "casesEdit", label: "登記進度與里程碑", desc: "拜訪、企劃書送出、回簽、開課、稽核、取證日期", parent: "cases" },
-      { key: "caseEmail", label: "Email 分頁", desc: "檢視與確認案件的關聯信件", parent: "cases" },
+      { key: "caseEmail", label: "Email 分頁", desc: "檢視案件的通聯紀錄與信件內容、確認關聯信件", parent: "cases" },
       { key: "caseDocs", label: "文件分頁", desc: "Drive 資料夾檔案（仍以 Google 共用權限為準）", parent: "cases" },
       { key: "caseSchedule", label: "排課分頁", desc: "Calendar 日程表與堂數比對", parent: "cases" },
     ],
@@ -128,6 +137,18 @@ export const PERM_GROUPS: PermGroup[] = [
 export const countOn = (p: Perms) =>
   PERM_GROUPS.flatMap((g) => g.items).filter((i) => p[i.key] === true && (!i.parent || p[i.parent] === true)).length;
 export const totalPerms = PERM_GROUPS.flatMap((g) => g.items).length;
+
+// Google 服務授權：登入只取得基本身分，用到哪個服務才由本人另外授權（Google 整合前置文件）
+// Drive 只有擁有者一條管理連線，用來列出已綁定資料夾的檔案；成員開檔仍依 Google 共用權限
+export const G_SERVICES: { key: GService; name: string; scope: string; needs: (m: Member) => boolean }[] = [
+  { key: "gmail", name: "Gmail 擴充功能", scope: "開啟信件時讀取寄件者、主旨與時間以建議案件；歸檔後保存整串內容，案件成員可查看", needs: (m) => effectivePerms(m.perms).gmail },
+  { key: "calendar", name: "Google Calendar", scope: "讀取本人的排課、稽核、拜訪事件", needs: (m) => effectivePerms(m.perms).caseSchedule || effectivePerms(m.perms).travel },
+  { key: "drive", name: "Google Drive", scope: "讀取已綁定資料夾的檔案清單；開啟檔案仍依 Google 共用權限", needs: (m) => !!m.isOwner },
+];
+
+export const G_LABEL: Record<GConn, string> = { connected: "已連線", expired: "需重新連線", none: "未連線" };
+
+export const googleOf = (m: Member | undefined, svc: GService): GConn => m?.google?.[svc] ?? (m?.status === "active" ? "connected" : "none");
 
 // 上層開關關閉時，下層開關一律視為關閉（例如沒有財務金額就不能進財務中心）
 export const effectivePerms = (p: Perms): Perms => {

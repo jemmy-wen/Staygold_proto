@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { ArrowRight } from "lucide-react";
+import { Lock, UserCircle2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useStore } from "../../lib/store";
-import { Button, Field, Input, ease } from "../../components/ui";
+import type { Member } from "../../lib/types";
+import { Avatar, Button, ease } from "../../components/ui";
 import { BrandLockup } from "../../components/brand";
 
 export function GoogleMark({ className = "size-4" }: { className?: string }) {
@@ -52,36 +53,80 @@ function BrandStatement() {
   );
 }
 
+// Google 的帳戶選擇畫面（Prototype 模擬）；「使用其他帳戶」示範用非受邀帳號登入
+export type GoogleAccount = { email: string; name: string; m?: Pick<Member, "name" | "color" | "avatar"> };
+
+export function GoogleChooser({ accounts, onPick, onOther }: { accounts: GoogleAccount[]; onPick: (a: GoogleAccount) => void; onOther: () => void }) {
+  return (
+    <div className="w-[420px] animate-rise rounded-2xl border border-ink-200 bg-white p-8 shadow-pop">
+      <div className="flex flex-col items-center text-center">
+        <GoogleMark className="size-8" />
+        <h2 className="mt-4 text-[20px] font-medium text-ink-900">選擇帳戶</h2>
+        <p className="mt-1 text-[13px] text-ink-500">以繼續使用「恆永顧問內部系統」</p>
+      </div>
+      <div className="mt-6 divide-y divide-ink-100 rounded-xl border border-ink-200">
+        {accounts.map((a) => (
+          <button key={a.email} onClick={() => onPick(a)} className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-ink-25">
+            <Avatar m={a.m ?? { name: a.name, color: "#5f6368" }} size={32} />
+            <span className="min-w-0 flex-1">
+              <span className="block text-[13px] font-medium text-ink-900">{a.name}</span>
+              <span className="block text-[12px] text-ink-500">{a.email}</span>
+            </span>
+          </button>
+        ))}
+        <button onClick={onOther} className="flex w-full items-center gap-3 px-4 py-3 text-left text-[13px] text-ink-600 hover:bg-ink-25">
+          <UserCircle2 className="size-8 text-ink-300" />
+          使用其他帳戶
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// 示範用：「使用其他帳戶」代表一個沒有受邀的 Google 帳號
+const OUTSIDER_EMAIL = "kevin.lai.tw@gmail.com";
+const DEMO_LOGIN = "exec1";
+
+// 只能用 Google 帳號登入，且該帳號必須是受邀並已加入的成員（10/29 會議、Google 整合前置文件）
+// Prototype 只放一個帳號進系統，其他權限檢視在左下角帳號卡切換；「使用其他帳戶」用來看無權登入畫面
 export function Login() {
   const s = useStore();
-  const [email, setEmail] = useState("yating.lin@staygold-demo.com");
+  const [stage, setStage] = useState<"start" | "google">("start");
+  const m = s.memberOf(DEMO_LOGIN);
+  const accounts: GoogleAccount[] = m ? [{ email: m.email, name: m.name, m }] : [];
   return (
     <AuthFrame>
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease }} className="w-[380px]">
-        <h2 className="text-[24px] font-semibold tracking-tight text-ink-900">登入</h2>
-        <Button variant="default" size="lg" className="mt-8 w-full" icon={<GoogleMark />} onClick={() => s.login("exec1")}>
-          使用 Google 帳號登入
-        </Button>
-        <div className="my-6 flex items-center gap-3 text-[12px] text-ink-400">
-          <span className="h-px flex-1 bg-ink-200" />或<span className="h-px flex-1 bg-ink-200" />
-        </div>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            const m = s.members.find((x) => x.email === email.trim() && x.status === "active");
-            if (!m) return s.toast("這個 Email 尚未加入工作空間，請向管理員索取邀請", "warn");
-            s.login(m.id);
-          }}
-          className="space-y-4"
-        >
-          <Field label="公司 Email">
-            <Input id="login-email" value={email} onChange={(e) => setEmail(e.target.value)} type="email" />
-          </Field>
-          <Button type="submit" variant="dark" size="lg" className="w-full">
-            繼續 <ArrowRight className="size-4" />
+      {stage === "start" ? (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease }} className="w-[380px]">
+          <h2 className="text-[24px] font-semibold tracking-tight text-ink-900">登入</h2>
+          <p className="mt-2 text-[13px] text-ink-500">請使用受邀加入的 Google 帳號</p>
+          <Button variant="default" size="lg" className="mt-8 w-full" icon={<GoogleMark />} onClick={() => setStage("google")}>
+            使用 Google 帳號登入
           </Button>
-        </form>
-      </motion.div>
+        </motion.div>
+      ) : (
+        <GoogleChooser accounts={accounts} onPick={() => s.login(DEMO_LOGIN)} onOther={() => s.deny(OUTSIDER_EMAIL)} />
+      )}
+    </AuthFrame>
+  );
+}
+
+// 登入被拒：未受邀、邀請過期、停權、移除都顯示同一段文字
+export function Denied() {
+  const s = useStore();
+  return (
+    <AuthFrame>
+      <div className="w-[400px] animate-rise">
+        <span className="grid size-12 place-items-center rounded-xl bg-ink-100 text-ink-500">
+          <Lock className="size-5" />
+        </span>
+        <h2 className="mt-6 text-[22px] font-semibold tracking-tight text-ink-900">此 Google 帳號無權登入此系統</h2>
+        {s.deniedEmail && <p className="mt-2 text-[13px] text-ink-500">{s.deniedEmail}</p>}
+        <p className="mt-4 text-[13.5px] leading-relaxed text-ink-600">請確認使用的是收到邀請的 Google 帳號。如需使用此系統，請向公司的系統管理員索取邀請。</p>
+        <Button variant="dark" size="lg" className="mt-8 w-full" icon={<GoogleMark />} onClick={s.logout}>
+          改用其他 Google 帳號登入
+        </Button>
+      </div>
     </AuthFrame>
   );
 }

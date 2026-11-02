@@ -68,22 +68,19 @@ export function DocsTab({ c }: { c: Case }) {
       </div>
     );
 
+  // 沒有 Drive 權限也列出檔名與資料夾結構；開啟檔案時由 Google 處理存取權申請（10/29 會議）
   const hasAccess = c.folder.sharedWith.includes(s.me.id);
-
-  if (!hasAccess)
-    return (
-      <Card>
-        <div className="flex flex-col items-center px-6 py-12 text-center">
-          <LockKeyhole className="size-7 stroke-[1.5] text-ink-300" />
-          <p className="mt-4 text-[16px] font-semibold text-ink-900">此帳號未有雲端存取權限，請聯絡管理員開通</p>
-        </div>
-      </Card>
-    );
 
   const shown = sub === "全部" ? groups.flatMap((g) => g.files.map((f) => ({ ...f, folder: g.folder }))) : groups.find((g) => g.folder === sub)?.files.map((f) => ({ ...f, folder: sub })) ?? [];
 
   return (
     <div className="space-y-4">
+      {!hasAccess && (
+        <div className="flex items-start gap-3 rounded-xl border border-ink-200 bg-white px-4 py-3 text-[13px] text-ink-700">
+          <LockKeyhole className="mt-0.5 size-4 shrink-0" />
+          <span>你的 Google 帳號尚未加入這個資料夾的共用名單：可以看到檔名，開啟檔案時 Google 會請你向資料夾擁有者申請存取權。</span>
+        </div>
+      )}
       <div className="overflow-hidden rounded-xl border border-ink-200 bg-white shadow-card">
         <div className="flex items-center justify-between gap-4 border-b border-ink-100 px-5 py-3.5">
           <div className="flex min-w-0 items-center gap-2 text-[13px]">

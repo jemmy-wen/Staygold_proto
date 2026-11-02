@@ -3,9 +3,9 @@ import { motion } from "framer-motion";
 import { CheckCircle2, CircleAlert, Download, FileSpreadsheet, Plus, Receipt, Users } from "lucide-react";
 import { useStore } from "../lib/store";
 import type { Case, Period } from "../lib/types";
-import { TODAY, openParam, agingBucket, dueDateOf, cn, contractTotal, fmtDate, money, periodState, triggerLabel, uid, withTax } from "../lib/utils";
-import { Avatar, Badge, Button, Checkbox, Empty, Field, Input, Modal, PageHeader, SearchInput, Segmented, Select, StatGroup, Tabs, ease, td, th } from "../components/ui";
-import { InvoiceModal, InvoicePill, PayPill, savePeriodChanges } from "../components/finance";
+import { TODAY, openParam, agingBucket, dueDateOf, cn, contractTotal, fmtDate, missingInvoice, money, periodState, triggerLabel, uid, withTax } from "../lib/utils";
+import { Avatar, Badge, Button, Checkbox, Empty, Field, Input, Modal, PageHeader, SearchInput, Segmented, Select, StatGroup, StatusPill, Tabs, ease, td, th } from "../components/ui";
+import { InvoiceModal, InvoicePill, PayPill, RequestCell, savePeriodChanges } from "../components/finance";
 import { GridCell, useGridDraft, type Change, type Grid } from "../components/grid";
 import { FilterChips, FilterMenu, Toolbar, pass, useFacets, type Facet } from "../components/filters";
 
@@ -15,7 +15,9 @@ export function FinanceCenter({ tab: initial }: { tab?: string }) {
   const s = useStore();
   const [tab, setTab] = useState<"todo" | "billing" | "payables">((initial as "todo") ?? "todo");
   const [exporting, setExporting] = useState(openParam("export"));
-  const rows: Row[] = useMemo(() => s.cases.flatMap((c) => c.periods.map((p) => ({ c, p, st: periodState(c, p, s.settings.payDays) }))), [s.cases, s.settings.payDays]);
+  const [newInvoice, setNewInvoice] = useState<{ caseId?: string } | null>(null);
+  const canAddInvoice = s.perms.financeRecord || s.perms.casesEdit;
+  const rows: Row[] = useMemo(() => s.cases.flatMap((c) => c.periods.map((p) => ({ c, p, st: periodState(p, s.settings.payDays) }))), [s.cases, s.settings.payDays]);
   const todo = rows.filter((r) => r.st.invoice === "待開立");
   const ar = rows.filter((r) => r.st.pay === "待收款");
   const overdue = ar.filter((r) => r.st.overdue > 0);
@@ -28,11 +30,18 @@ export function FinanceCenter({ tab: initial }: { tab?: string }) {
       <PageHeader
         title="財務中心"
         actions={
-          s.perms.exportExcel && (
-            <Button variant="dark" icon={<FileSpreadsheet className="size-4" />} onClick={() => setExporting(true)}>
-              匯出待開發票清單
-            </Button>
-          )
+          <>
+            {canAddInvoice && tab !== "payables" && (
+              <Button variant="outline" icon={<Plus className="size-4" />} onClick={() => setNewInvoice({})}>
+                新增發票
+              </Button>
+            )}
+            {s.perms.exportExcel && (
+              <Button variant="dark" icon={<FileSpreadsheet className="size-4" />} onClick={() => setExporting(true)}>
+                匯出待開發票清單
+              </Button>
+            )}
+          </>
         }
       />
       <div className="px-8 pt-5">
@@ -56,25 +65,27 @@ export function FinanceCenter({ tab: initial }: { tab?: string }) {
         ]}
       />
       <motion.div key={tab} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, ease }} className="px-8 py-5">
-        {tab === "todo" && <TodoList rows={todo} />}
+        {tab === "todo" && <TodoList rows={todo} onNew={canAddInvoice ? (caseId) => setNewInvoice({ caseId }) : undefined} />}
         {tab === "billing" && <BillingTable rows={rows} grid={grid} />}
         {tab === "payables" && <Payables />}
       </motion.div>
       {exporting && <ExportModal onClose={() => setExporting(false)} />}
+      {newInvoice && <NewInvoiceModal caseId={newInvoice.caseId} onClose={() => setNewInvoice(null)} />}
     </div>
   );
 }
 
-function TodoList({ rows }: { rows: Row[] }) {
+function TodoList({ rows, onNew }: { rows: Row[]; onNew?: (caseId: string) => void }) {
   const s = useStore();
   const [inv, setInv] = useState<Row | null>(null);
-  if (!rows.length) return <Empty icon={<CheckCircle2 />} title="目前沒有待開立的發票" />;
+  // 進入輔導中以後仍未申請任何一期的案件：系統不代為申請，由財務判斷是否直接新增發票
+  const missing = s.cases.filter((c) => missingInvoice(c, s.statusOf(c)));
   const groups = [
-    { title: "第一期・開課當月", list: rows.filter((r) => r.p.trigger === "開課") },
-    { title: "取證後及約定日期", list: rows.filter((r) => r.p.trigger !== "開課") },
+    { title: "待開立", list: [...rows].sort((a, b) => (a.p.requestedAt ?? "").localeCompare(b.p.requestedAt ?? "")) },
   ];
   return (
     <div className="space-y-5">
+      {!rows.length && <Empty icon={<CheckCircle2 />} title="目前沒有待開立的發票" />}
       {groups
         .filter((g) => g.list.length)
         .map((g) => (
@@ -86,6 +97,7 @@ function TodoList({ rows }: { rows: Row[] }) {
               {g.list.map((r) => {
                 const cu = s.customerOf(r.c);
                 const ready = !!cu.invoiceTitle && !!cu.taxId && !!cu.invoiceAddress;
+                const by = s.memberOf(r.p.requestedBy);
                 return (
                   <div key={r.c.id + r.p.id} className="flex items-center gap-4 border-b border-ink-100 px-5 py-3.5 last:border-b-0">
                     <div className="min-w-0 flex-1">
@@ -97,8 +109,9 @@ function TodoList({ rows }: { rows: Row[] }) {
                         <button onClick={() => s.go({ page: "case", id: r.c.id, tab: "finance" })} className="font-mono hover:text-ink-800 hover:underline">
                           {r.c.id}
                         </button>
-                        ・{triggerLabel(r.p)}，{fmtDate(r.st.triggeredOn)} 觸發・品名「{r.c.invoiceItem}」
+                        ・{by?.nickname ?? by?.name} 於 {fmtDate(r.p.requestedAt)} {r.p.addedByFinance ? "新增" : "申請"}・品名「{r.c.invoiceItem}」
                       </p>
+                      {r.p.requestNote && <p className="mt-1 text-[12px] text-ink-700">備註：{r.p.requestNote}</p>}
                     </div>
                     {ready ? (
                       <Badge tone="green">
@@ -123,6 +136,39 @@ function TodoList({ rows }: { rows: Row[] }) {
             </div>
           </div>
         ))}
+      {missing.length > 0 && (
+        <div>
+          <p className="mb-2 text-[12.5px] font-medium text-ink-500">已進入輔導階段、尚未申請任何一期・{missing.length} 件</p>
+          <div className="overflow-hidden rounded-xl border border-ink-200 bg-white shadow-card">
+            {missing.map((c) => {
+              const cu = s.customerOf(c);
+              const owner = s.memberOf(c.owner);
+              return (
+                <div key={c.id} className="flex items-center gap-4 border-b border-ink-100 px-5 py-3 last:border-b-0">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[13px] text-ink-900">
+                      {cu.short}
+                      {c.site ? ` ${c.site}` : ""} {c.item}
+                    </p>
+                    <p className="mt-0.5 text-[12px] text-ink-500">
+                      <button onClick={() => s.go({ page: "case", id: c.id, tab: "finance" })} className="font-mono hover:text-ink-800 hover:underline">
+                        {c.id}
+                      </button>
+                      ・負責人 {owner?.nickname ?? owner?.name}
+                    </p>
+                  </div>
+                  <StatusPill status={s.statusOf(c)} />
+                  {onNew && (
+                    <Button size="sm" variant="outline" onClick={() => onNew(c.id)}>
+                      新增發票
+                    </Button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
       {inv && <InvoiceModal c={inv.c} p={inv.p} onClose={() => setInv(null)} />}
     </div>
   );
@@ -132,24 +178,23 @@ function BillingTable({ rows, grid }: { rows: Row[]; grid: Grid }) {
   const s = useStore();
   const f = useFacets();
   const [q, setQ] = useState("");
-  const [adding, setAdding] = useState(false);
   const can = s.perms.financeRecord;
   const payOf = (r: Row) => (r.st.pay === "待收款" && r.st.overdue > 0 ? "逾期" : r.st.pay);
   const trig = (r: Row) => (r.p.trigger === "開課" ? "第一堂課開課當月" : r.p.trigger === "取證" ? "取證後" : "自訂日期");
-  const base = rows.filter((r) => r.st.invoice !== "未觸發" || r.p.invoiceNo);
+  const base = rows.filter((r) => r.st.invoice !== "未申請");
   const opt = (vals: string[], fn: (r: Row) => string) => vals.map((v) => ({ value: v, label: v, hint: String(base.filter((r) => fn(r) === v).length) }));
   const facets: Facet[] = [
     { key: "invoice", label: "發票狀態", options: opt(["待開立", "已開立"], (r) => r.st.invoice) },
     { key: "pay", label: "請款狀態", options: opt(["待收款", "逾期", "已收款"], payOf) },
-    { key: "trigger", label: "開票時機", options: opt(["第一堂課開課當月", "取證後", "自訂日期"], trig) },
+    { key: "trigger", label: "預計開票時機", options: opt(["第一堂課開課當月", "取證後", "自訂日期"], trig) },
     { key: "customer", label: "客戶", options: [...new Set(base.map((r) => s.customerOf(r.c).short))].map((v) => ({ value: v, label: v, hint: String(base.filter((r) => s.customerOf(r.c).short === v).length) })) },
   ];
   const list = base
     .filter((r) => pass(f.value, "invoice", r.st.invoice) && pass(f.value, "pay", payOf(r)) && pass(f.value, "trigger", trig(r)) && pass(f.value, "customer", s.customerOf(r.c).short))
     .filter((r) => !q || [r.c.id, s.customerOf(r.c).short, r.p.invoiceNo ?? ""].some((x) => x.toLowerCase().includes(q.toLowerCase())))
-    .sort((a, b) => (b.p.invoiceDate ?? b.st.triggeredOn ?? "").localeCompare(a.p.invoiceDate ?? a.st.triggeredOn ?? ""));
+    .sort((a, b) => (b.p.invoiceDate ?? b.p.requestedAt ?? "").localeCompare(a.p.invoiceDate ?? a.p.requestedAt ?? ""));
   const cols: [string, number, boolean?][] = [
-    ["客戶／案件", 200], ["期數", 100], ["開票時機", 120], ["含稅金額", 120, true], ["通知開票日", 130], ["發票狀態", 110],
+    ["客戶／案件", 200], ["期數", 100], ["預計開票時機", 120], ["含稅金額", 120, true], ["申請開票", 130], ["發票狀態", 110],
     ["發票號碼", 140], ["開立日期", 130], ["約定付款日", 130], ["請款狀態", 150], ["收款日期", 130], ["帳齡", 130],
   ];
   const plain = "h-11 border-b border-r border-ink-100 px-3 text-[13px]";
@@ -158,17 +203,9 @@ function BillingTable({ rows, grid }: { rows: Row[]; grid: Grid }) {
       <Toolbar
         search={<SearchInput value={q} onChange={setQ} placeholder="搜尋客戶、案件、發票號碼" className="w-72" />}
         filter={<FilterMenu facets={facets} f={f} />}
-        right={
-          (s.perms.financeRecord || s.perms.casesEdit) && (
-            <Button variant="outline" icon={<Plus className="size-4" />} onClick={() => setAdding(true)}>
-              新增請款
-            </Button>
-          )
-        }
         count={`${list.length} 筆`}
       />
       <FilterChips facets={facets} f={f} />
-      {adding && <NewPeriodModal onClose={() => setAdding(false)} />}
       <div className="overflow-x-auto rounded-xl border border-ink-200 bg-white shadow-card">
         <table className="w-full min-w-[1590px] table-fixed border-separate border-spacing-0">
           <colgroup>
@@ -221,7 +258,9 @@ function BillingTable({ rows, grid }: { rows: Row[]; grid: Grid }) {
                   </td>
                   <td className={cn(plain, "truncate text-ink-600")}>{triggerLabel(r.p)}</td>
                   <td className={cn(plain, "text-right font-medium tabular-nums")}>{money(withTax(r.p.amount))}</td>
-                  {cell("notifyDate", 4)}
+                  <td className={plain}>
+                    <RequestCell c={r.c} p={r.p} />
+                  </td>
                   <td className={plain}>
                     <InvoicePill v={r.st.invoice} />
                   </td>
@@ -265,6 +304,7 @@ function Payables() {
   ];
   const plain = "h-11 border-b border-r border-ink-100 px-3 text-[13px]";
   const [q, setQ] = useState("");
+  const [adding, setAdding] = useState(false);
   const f = useFacets();
   const nameOf = (id: string) => s.memberOf(id)?.nickname ?? s.memberOf(id)?.name ?? id;
   const facets: Facet[] = [
@@ -279,9 +319,17 @@ function Payables() {
     <Toolbar
       search={<SearchInput value={q} onChange={setQ} placeholder="搜尋顧問、案件、請款內容" className="w-72" />}
       filter={<FilterMenu facets={facets} f={f} />}
+      right={
+        can && (
+          <Button variant="outline" icon={<Plus className="size-4" />} onClick={() => setAdding(true)}>
+            新增請款
+          </Button>
+        )
+      }
       count={`${shown.length} 筆`}
     />
     <FilterChips facets={facets} f={f} />
+    {adding && <NewPayableModal onClose={() => setAdding(false)} />}
     <div className="overflow-x-auto rounded-xl border border-ink-200 bg-white shadow-card">
       <table className="w-full min-w-[1680px] table-fixed border-separate border-spacing-0">
         <colgroup>
@@ -363,35 +411,42 @@ function Payables() {
   );
 }
 
-// 新增請款：選擇案件後在該案件的分期最後新增一期，與案件財務分頁的「新增一期」為同一筆資料
-function NewPeriodModal({ onClose }: { onClose: () => void }) {
+// 新增外聘顧問請款：由財務依顧問開來的發票登記；一口價，不計算分潤（10/29 會議）
+function NewPayableModal({ onClose }: { onClose: () => void }) {
   const s = useStore();
+  const consultants = s.members.filter((m) => m.status === "active" && (m.role === "顧問" || m.role === "外部顧問"));
+  const [memberId, setMemberId] = useState("");
   const [caseId, setCaseId] = useState("");
+  const [desc, setDesc] = useState("");
   const [amount, setAmount] = useState("");
-  const [trigger, setTrigger] = useState<Period["trigger"]>("自訂");
-  const [customDate, setCustomDate] = useState(TODAY);
-  const c = s.cases.find((x) => x.id === caseId);
-  const total = c ? contractTotal(c) : 0;
+  const [requestDate, setRequestDate] = useState(TODAY);
+  const [invoiceTitle, setInvoiceTitle] = useState("");
+  const [taxId, setTaxId] = useState("");
+  const [invoiceNo, setInvoiceNo] = useState("");
+  const [account, setAccount] = useState("");
   const n = Number(amount) || 0;
-  const pct = total ? Math.round((n / total) * 100) : 0;
-  const planned = c ? c.periods.reduce((acc, p) => acc + p.amount, 0) : 0;
-  const valid = !!c && n > 0 && (trigger !== "自訂" || !!customDate);
-
+  const valid = !!memberId && !!caseId && !!desc.trim() && n > 0;
+  // 選顧問時帶入上一筆請款的發票抬頭、統編與收款帳戶
+  const pickMember = (id: string) => {
+    setMemberId(id);
+    const last = s.payables.find((p) => p.memberId === id);
+    setInvoiceTitle(last?.invoiceTitle ?? "");
+    setTaxId(last?.taxId ?? "");
+    setAccount(last?.account ?? "");
+  };
   const save = () => {
-    if (!c) return;
-    const next: Period = { id: uid("p"), n: c.periods.length + 1, pct, amount: n, trigger, customDate: trigger === "自訂" ? customDate : undefined };
-    s.updateCase(c.id, (x) => ({ ...x, periods: [...x.periods, next] }));
-    s.log({ module: "財務", caseId: c.id, target: `第 ${next.n} 期`, action: "新增請款", after: `${money(n)}（未稅）・${triggerLabel(next)}` });
-    s.toast(`已新增 ${c.id} 第 ${next.n} 期`);
+    const m = s.memberOf(memberId);
+    s.addPayable({ id: uid("ap"), memberId, caseId, desc: desc.trim(), requestDate, amount: n, invoiceTitle, taxId, invoiceNo: invoiceNo.trim() || undefined, account, status: "待核准" });
+    s.log({ module: "財務", caseId, target: "外聘顧問請款", action: "新增請款", after: `${m?.name}・${desc.trim()}・${money(n)}` });
+    s.toast("已新增請款，待核價主管核准");
     onClose();
   };
-
   return (
     <Modal
       open
       onClose={onClose}
-      width={560}
-      title="新增請款"
+      width={600}
+      title="新增外聘顧問請款"
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
@@ -404,13 +459,123 @@ function NewPeriodModal({ onClose }: { onClose: () => void }) {
       }
     >
       <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="顧問" required>
+            <Select value={memberId} onChange={pickMember} placeholder="選擇顧問" options={consultants.map((m) => ({ value: m.id, label: m.name, hint: m.title }))} />
+          </Field>
+          <Field label="案件" required>
+            <Select value={caseId} onChange={setCaseId} placeholder="搜尋案件編號或客戶" options={s.cases.map((x) => ({ value: x.id, label: x.id, hint: s.customerOf(x).short }))} />
+          </Field>
+        </div>
+        <Field label="請款內容" required>
+          <Input value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="例：第 1–4 堂輔導費" />
+        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="金額" required>
+            <Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" className="tabular-nums" />
+          </Field>
+          <Field label="請款日">
+            <Input type="date" value={requestDate} onChange={(e) => setRequestDate(e.target.value)} />
+          </Field>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="發票抬頭">
+            <Input value={invoiceTitle} onChange={(e) => setInvoiceTitle(e.target.value)} />
+          </Field>
+          <Field label="統一編號">
+            <Input value={taxId} onChange={(e) => setTaxId(e.target.value)} />
+          </Field>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="發票號碼">
+            <Input value={invoiceNo} onChange={(e) => setInvoiceNo(e.target.value.toUpperCase())} placeholder="可之後再補" />
+          </Field>
+          <Field label="收款帳戶">
+            <Input value={account} onChange={(e) => setAccount(e.target.value)} />
+          </Field>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// 新增發票：財務不必等負責人申請。一期對應一張發票與一筆收款，所以是選一期還沒開立的，或新增一期；沒有發票號碼時先存成待開立
+function NewInvoiceModal({ caseId: initial, onClose }: { caseId?: string; onClose: () => void }) {
+  const s = useStore();
+  const can = s.perms.financeRecord;
+  const firstOpen = (id?: string) => s.cases.find((x) => x.id === id)?.periods.find((p) => !p.invoiceNo);
+  const [caseId, setCaseId] = useState(initial ?? "");
+  const [periodId, setPeriodId] = useState(firstOpen(initial)?.id ?? "new");
+  const [amount, setAmount] = useState(String(firstOpen(initial)?.amount ?? ""));
+  const [no, setNo] = useState("");
+  const [date, setDate] = useState(TODAY);
+  const [kind, setKind] = useState<"電子發票" | "紙本">("電子發票");
+  const c = s.cases.find((x) => x.id === caseId);
+  const target = c?.periods.find((p) => p.id === periodId);
+  const total = c ? contractTotal(c) : 0;
+  const n = Number(amount) || 0;
+  const pct = total ? Math.round((n / total) * 100) : (target?.pct ?? 0);
+  const planned = c ? c.periods.reduce((acc, p) => acc + p.amount, 0) : 0;
+  const cu = c && s.customerOf(c);
+  const number = no.trim();
+  const pickCase = (id: string) => {
+    const first = firstOpen(id);
+    setCaseId(id);
+    setPeriodId(first?.id ?? "new");
+    setAmount(String(first?.amount ?? ""));
+  };
+  const pickPeriod = (id: string) => {
+    setPeriodId(id);
+    setAmount(String(c?.periods.find((p) => p.id === id)?.amount ?? ""));
+  };
+
+  const save = () => {
+    if (!c) return;
+    const before = c.periods;
+    const label = target ? target.n : c.periods.length + 1;
+    const patch = {
+      amount: n,
+      pct,
+      requestedAt: target?.requestedAt ?? TODAY,
+      requestedBy: target?.requestedBy ?? s.me.id,
+      addedByFinance: target?.requestedAt ? target.addedByFinance : true,
+      ...(number ? { invoiceNo: number, invoiceDate: date, invoiceKind: kind } : {}),
+    };
+    s.updateCase(c.id, (x) => ({
+      ...x,
+      periods: target ? x.periods.map((y) => (y.id === target.id ? { ...y, ...patch } : y)) : [...x.periods, { id: uid("p"), n: label, trigger: "自訂" as const, customDate: date, ...patch }],
+    }));
+    s.log({ module: "財務", caseId: c.id, target: `第 ${label} 期發票`, action: "新增發票", after: `未稅 ${money(n)}・${number || "待開立"}` });
+    s.toast(number ? `已新增 ${c.id} 第 ${label} 期發票` : `已新增 ${c.id} 第 ${label} 期，待開立`, "success", {
+      label: "復原",
+      run: () => {
+        s.updateCase(c.id, (x) => ({ ...x, periods: before }));
+        s.log({ module: "財務", caseId: c.id, target: `第 ${label} 期發票`, action: "復原新增發票" });
+      },
+    });
+    onClose();
+  };
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      width={560}
+      title="新增發票"
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>
+            取消
+          </Button>
+          <Button variant="dark" disabled={!c || n <= 0} onClick={save}>
+            {number ? "新增發票" : "存為待開立"}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
         <Field label="案件" required>
-          <Select
-            value={caseId}
-            onChange={setCaseId}
-            placeholder="搜尋案件編號或客戶"
-            options={s.visibleCases.map((x) => ({ value: x.id, label: x.id, hint: s.customerOf(x).short }))}
-          />
+          <Select value={caseId} onChange={pickCase} placeholder="搜尋案件編號或客戶" options={s.visibleCases.map((x) => ({ value: x.id, label: x.id, hint: s.customerOf(x).short }))} />
         </Field>
         {c && (
           <div className="rounded-xl border border-ink-200 bg-ink-25 px-4 py-3 text-[12.5px]">
@@ -424,6 +589,18 @@ function NewPeriodModal({ onClose }: { onClose: () => void }) {
             </div>
           </div>
         )}
+        {c && (
+          <Field label="期別" required>
+            <Select
+              value={periodId}
+              onChange={pickPeriod}
+              options={[
+                ...c.periods.filter((p) => !p.invoiceNo).map((p) => ({ value: p.id, label: `第 ${p.n} 期・${money(p.amount)}`, hint: p.requestedAt ? "待開立" : "未申請" })),
+                { value: "new", label: "新增一期" },
+              ]}
+            />
+          </Field>
+        )}
         <div className="grid grid-cols-2 gap-3">
           <Field label="金額（未稅）" required>
             <Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" className="tabular-nums" />
@@ -432,20 +609,31 @@ function NewPeriodModal({ onClose }: { onClose: () => void }) {
             <Input value={n ? `${money(withTax(n))}${total ? `・${pct}%` : ""}` : ""} disabled />
           </Field>
         </div>
-        <Field label="開票時機">
-          <div className="flex items-center gap-2">
-            <Segmented
-              value={trigger}
-              onChange={setTrigger}
-              items={[
-                { value: "開課", label: "第一堂課開課當月" },
-                { value: "取證", label: "取證後" },
-                { value: "自訂", label: "自訂日期" },
-              ]}
-            />
-            {trigger === "自訂" && <Input type="date" value={customDate} onChange={(e) => setCustomDate(e.target.value)} className="w-40" />}
-          </div>
-        </Field>
+        {can && (
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="發票號碼">
+                <Input value={no} onChange={(e) => setNo(e.target.value.toUpperCase())} placeholder="還沒拿到可之後再補" />
+              </Field>
+              <Field label="開立日期">
+                <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} disabled={!number} />
+              </Field>
+            </div>
+            {number && (
+              <Field label="發票類型">
+                <Segmented
+                  value={kind}
+                  onChange={setKind}
+                  items={[
+                    { value: "電子發票", label: "電子發票" },
+                    { value: "紙本", label: "紙本" },
+                  ]}
+                />
+              </Field>
+            )}
+          </>
+        )}
+        {cu && (!cu.invoiceTitle || !cu.taxId || !cu.invoiceAddress) && <p className="text-[12.5px] text-amber-700">這個客戶的發票抬頭、統編或地址還沒補齊，可以先新增，開票前再到客戶資料補上。</p>}
       </div>
     </Modal>
   );
@@ -457,7 +645,7 @@ function ExportModal({ onClose }: { onClose: () => void }) {
   const s = useStore();
   const [scope, setScope] = useState<"todo" | "all">("todo");
   const [picked, setPicked] = useState<Set<string> | null>(null);
-  const base = s.cases.filter((c) => c.periods.length && (scope === "all" || c.periods.some((p) => periodState(c, p, s.settings.payDays).invoice === "待開立")));
+  const base = s.cases.filter((c) => c.periods.length && (scope === "all" || c.periods.some((p) => periodState(p, s.settings.payDays).invoice === "待開立")));
   const sel = picked ?? new Set(base.map((c) => c.id));
   const list = base.filter((c) => sel.has(c.id));
   const N = Math.max(1, ...list.map((c) => c.periods.length));
@@ -469,7 +657,7 @@ function ExportModal({ onClose }: { onClose: () => void }) {
   ];
   const rowOf = (c: Case) => {
     const cu = s.customerOf(c);
-    const st = c.periods.map((p) => periodState(c, p, s.settings.payDays));
+    const st = c.periods.map((p) => periodState(p, s.settings.payDays));
     const kind = [...c.periods].reverse().find((p) => p.invoiceKind)?.invoiceKind ?? "電子發票";
     const pending = st.some((x) => x.invoice === "待開立");
     const checks = [

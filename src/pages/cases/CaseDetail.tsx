@@ -4,7 +4,7 @@ import { useStore } from "../../lib/store";
 import { createRenewal } from "../../lib/caseOps";
 import { STATUSES, STATUS_PHASE, cn, nowStamp } from "../../lib/utils";
 import { motion } from "framer-motion";
-import { Avatar, Badge, Button, Empty, MenuItem, Modal, Popover, Select, StatusPill, Tabs } from "../../components/ui";
+import { Avatar, Badge, Button, Empty, MenuItem, Modal, Popover, Segmented, Select, StatusPill, Tabs } from "../../components/ui";
 import { Overview } from "./tabs/Overview";
 import { ProgressPanel } from "./ProgressPanel";
 import { EmailTab } from "./tabs/EmailTab";
@@ -78,7 +78,7 @@ export function CaseDetail({ id, tab: initial }: { id: string; tab?: string }) {
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <div className="mr-1 flex items-center gap-2 rounded-lg border border-ink-200 bg-white py-1 pl-1 pr-3 shadow-card">
+            <div className="mr-1 flex h-9 items-center gap-2 rounded-lg border border-ink-200 bg-white pl-1 pr-3 shadow-card">
               <Avatar m={owner} size={26} />
               <div className="leading-tight">
                 <p className="text-[11px] text-ink-400">負責人</p>
@@ -142,20 +142,28 @@ export function CaseDetail({ id, tab: initial }: { id: string; tab?: string }) {
         </div>
       </div>
 
-      <Tabs
-        className="mt-5 px-8"
-        value={current}
-        onChange={(v) => s.guarded(() => setTab(v))}
-        items={[
-          { value: "overview", label: <><LayoutDashboard />概覽</> },
-          { value: "email", label: <><Mail />Email</>, count: pendingMail, hidden: !s.perms.caseEmail },
-          { value: "docs", label: <><FolderOpen />文件</>, hidden: !s.perms.caseDocs },
-          { value: "schedule", label: <><CalendarDays />排課 {sessionsLinked}/{c.contractSessions || "—"}</>, hidden: !s.perms.caseSchedule },
-          { value: "finance", label: <><Wallet />財務</>, hidden: !s.perms.financeAmounts },
-          { value: "customer", label: <><Building2 />客戶</> },
-          { value: "history", label: <><History />異動紀錄</>, hidden: !s.perms.audit },
-        ]}
-      />
+      <div className="relative mt-5">
+        <Tabs
+          className="px-8"
+          value={current}
+          onChange={(v) => s.guarded(() => setTab(v))}
+          items={[
+            { value: "overview", label: <><LayoutDashboard />概覽</> },
+            { value: "email", label: <><Mail />Email</>, count: pendingMail, hidden: !s.perms.caseEmail },
+            { value: "docs", label: <><FolderOpen />文件</>, hidden: !s.perms.caseDocs },
+            { value: "schedule", label: <><CalendarDays />排課 {sessionsLinked}/{c.contractSessions || "—"}</>, hidden: !s.perms.caseSchedule },
+            { value: "finance", label: <><Wallet />財務</>, hidden: !s.perms.financeAmounts },
+            { value: "customer", label: <><Building2 />客戶</> },
+            { value: "history", label: <><History />異動紀錄</>, hidden: !s.perms.audit },
+          ]}
+        />
+        {/* 給客戶比較方案用：浮在 tab 列右端，不佔排版空間 */}
+        {current === "email" && (
+          <div className="absolute right-8 top-1/2 -translate-y-1/2">
+            <Segmented size="sm" value={s.mailView} onChange={s.setMailView} items={[{ value: "full", label: "完整內文" }, { value: "log", label: "關鍵字" }]} />
+          </div>
+        )}
+      </div>
       <motion.div key={current} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }} className="px-8 py-6">
         {current === "overview" && <Overview c={c} />}
         {current === "email" && <EmailTab c={c} />}

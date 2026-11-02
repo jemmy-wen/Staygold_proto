@@ -242,7 +242,7 @@ const caseValues = (c: Case, k: keyof CaseFilters, s: ReturnType<typeof useStore
 };
 
 type Group = { key: string; label: string; status?: CaseStatus; cases: Case[] };
-// 看板依狀態分組時保留空欄，10 種狀態全部顯示
+// 看板依狀態分組時保留空欄，全部狀態都顯示
 function groupCases(list: Case[], group: CaseGroup, s: ReturnType<typeof useStore>, keepEmpty = false): Group[] {
   if (group === "none") return [{ key: "all", label: "全部", cases: list }];
   if (group === "status") return STATUSES.map((st) => ({ key: st, label: st, status: st, cases: list.filter((c) => s.statusOf(c) === st) })).filter((g) => keepEmpty || g.cases.length);

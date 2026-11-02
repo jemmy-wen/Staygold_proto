@@ -5,6 +5,7 @@ import { INDUSTRIES, REGIONS, VERIFIERS } from "../../lib/seed";
 import type { Case, Customer } from "../../lib/types";
 import { Button, Field, Input, Modal, Segmented, Select } from "../../components/ui";
 import { casePrefix, cn, folderL3, nextCaseId, nowStamp, uid } from "../../lib/utils";
+import { renewalYear } from "../../lib/caseOps";
 
 type Mode = "new" | "copy";
 
@@ -46,6 +47,15 @@ export function NewCaseModal({
   const [verifier, setVerifier] = useState("");
 
   const prev = s.cases.find((c) => c.id === copyFrom);
+  // 選了前案就帶入驗證項目、類別（續證）與稽核年度，仍可修改（10/29 會議）
+  const pickPrev = (id: string) => {
+    setCopyFrom(id);
+    const p = s.cases.find((c) => c.id === id);
+    if (!p) return;
+    setItem(p.item);
+    setCategory("續證");
+    setYear(renewalYear(p));
+  };
   const existing = mode === "copy" ? s.customers.find((c) => c.id === prev?.customerId) : s.customers.find((c) => c.id === customerId);
   const draftCustomer: Customer | undefined =
     mode === "new" && custMode === "new"
@@ -222,7 +232,7 @@ export function NewCaseModal({
         ) : (
           <>
             <Field label="複製哪一個舊案件" required>
-              <Select value={copyFrom} onChange={setCopyFrom} placeholder="選擇前案" options={copyable.map((c) => ({ value: c.id, label: `${c.id}（${s.statusOf(c)}）` }))} />
+              <Select value={copyFrom} onChange={pickPrev} placeholder="選擇前案" options={copyable.map((c) => ({ value: c.id, label: `${c.id}（${s.statusOf(c)}）` }))} />
             </Field>
             {existing && (
               <div className="rounded-xl border border-ink-200 bg-ink-25 p-4">
@@ -261,7 +271,7 @@ export function NewCaseModal({
               <Select value={category} onChange={(v) => setCategory(v as Case["category"])} options={["新案", "續證", "追加輔導", "轉證"]} />
             </Field>
             <Field label="稽核年度" required>
-              <Select value={year} onChange={setYear} options={["2026", "2027", "2028"]} />
+              <Select value={year} onChange={setYear} options={[...new Set(["2026", "2027", "2028", year])].sort()} />
             </Field>
             <Field label="負責人" required>
               <Select value={owner} onChange={setOwner} placeholder="指定負責人" options={consultants.map((m) => ({ value: m.id, label: `${m.nickname ?? m.name}・${m.title}` }))} />

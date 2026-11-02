@@ -105,7 +105,7 @@ function DateChip({ value, label, can, candidate, onSave, onClear }: { value?: s
   );
 }
 
-// 案件進度：10 種狀態（PRD 3.9.4）與各階段的里程碑日期集中在同一處
+// 案件進度：PRD 3.9.4 的 10 種狀態加上結案，與各階段的里程碑日期集中在同一處
 export function ProgressPanel({ c, goReview }: { c: Case; goReview: () => void }) {
   const s = useStore();
   const st = s.statusOf(c);
@@ -165,9 +165,10 @@ export function ProgressPanel({ c, goReview }: { c: Case; goReview: () => void }
       )}
     </div>,
     chip("certified"),
+    <span className="text-[12px] text-ink-500">{c.noRenew ? "本次不續證" : ""}</span>,
     chip("certExpiry"),
   ];
-  const cellLabel = ["拜訪", "", "內容核可", "核價核可", "送出", "回簽", "開課", "稽核", "取證", "到期"];
+  const cellLabel = ["拜訪", "", "內容核可", "核價核可", "送出", "回簽", "開課", "稽核", "取證", "", "到期"];
   const toggle = (
     <button
       onClick={() => setOpen(!open)}
@@ -184,7 +185,7 @@ export function ProgressPanel({ c, goReview }: { c: Case; goReview: () => void }
         {open && (
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.22, ease }} className="overflow-hidden">
       <div className="px-5 pb-3 pt-4">
-        <div className="grid gap-x-1" style={{ gridTemplateColumns: "repeat(10, minmax(0, 1fr))" }}>
+        <div className="grid gap-x-1" style={{ gridTemplateColumns: `repeat(${STATUSES.length}, minmax(0, 1fr))` }}>
           {phases.map((ph) => {
             const span = STATUSES.filter((x) => STATUS_PHASE[x] === ph).length;
             return (
@@ -266,9 +267,11 @@ function CurrentAction({ c, goReview, collapsed, idx, toggle, onJump }: { c: Cas
     );
   } else if (st === "已取證") {
     text = m.certExpiry ? `證書 ${daysUntil(m.certExpiry)} 天後到期` : "尚未登記證書到期日";
+  } else if (st === "結案") {
+    text = renewed ? `已結案，已建立續證案件 ${renewed.id}` : c.noRenew ? "已結案，本次不續證" : !m.certExpiry ? "已結案" : daysUntil(m.certExpiry) >= 0 ? `已結案，證書 ${daysUntil(m.certExpiry)} 天後到期` : `已結案，證書已於 ${fmtDate(m.certExpiry)} 到期`;
   } else if (st === "續證期") {
-    text = renewed ? `已建立續證案件 ${renewed.id}` : c.noRenew ? "本次不續證" : `證書 ${daysUntil(m.certExpiry!)} 天後到期`;
-    if (!renewed && !c.noRenew)
+    text = renewed ? `已建立續證案件 ${renewed.id}` : !m.certExpiry ? "尚未登記證書到期日" : `證書 ${daysUntil(m.certExpiry)} 天後到期`;
+    if (!renewed)
       action = (
         <div className="flex gap-2">
           {s.me.role === "主管" && s.perms.reviewPrice && (
@@ -276,8 +279,9 @@ function CurrentAction({ c, goReview, collapsed, idx, toggle, onJump }: { c: Cas
               size="sm"
               variant="ghost"
               onClick={() => {
-                s.updateCase(c.id, (x) => ({ ...x, noRenew: true }));
+                s.updateCase(c.id, (x) => ({ ...x, noRenew: true, manualStatus: undefined, manualBasis: undefined }));
                 s.log({ module: "案件", caseId: c.id, target: "續證", action: "標記本次不續證" });
+                s.toast("已標記本次不續證，案件轉為結案", "success", { label: "復原", run: () => s.updateCase(c.id, (x) => ({ ...x, noRenew: false, manualStatus: c.manualStatus, manualBasis: c.manualBasis })) });
               }}
             >
               本次不續證
@@ -303,7 +307,7 @@ function CurrentAction({ c, goReview, collapsed, idx, toggle, onJump }: { c: Cas
 
   return (
     <AnimatePresence initial={false} mode="wait">
-      <motion.div key={st + text} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }} className={cn("flex min-h-[48px] items-center gap-3 border-t border-ink-100 px-5 py-2.5", st === "續證期" && !renewed && !c.noRenew && "bg-amber-50/50")}>
+      <motion.div key={st + text} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }} className={cn("flex min-h-[48px] items-center gap-3 border-t border-ink-100 px-5 py-2.5", st === "續證期" && !renewed && "bg-amber-50/50")}>
         {collapsed ? (
           <span className="flex shrink-0 items-center gap-2.5">
             <span className="flex gap-0.5">

@@ -4,7 +4,7 @@ import { ArrowUpRight, Clock, Lock, RotateCcw, Send, ShieldCheck } from "lucide-
 import { displayName, useStore } from "../../lib/store";
 import { PERM_GROUPS, PRESETS, ROLES, countOn, totalPerms } from "../../lib/perms";
 import type { Perms, RolePreset } from "../../lib/types";
-import { Avatar, Badge, Button, Drawer, Segmented, Select, Switch, ease } from "../../components/ui";
+import { Avatar, Badge, Button, Drawer, Input, Segmented, Select, Switch, ease } from "../../components/ui";
 import { useLeaveGuard } from "../../components/grid";
 import { cn } from "../../lib/utils";
 
@@ -15,15 +15,20 @@ export function MemberDrawer({ id, onClose }: { id: string | null; onClose: () =
   const m = s.members.find((x) => x.id === id);
   const [draft, setDraft] = useState<Perms | null>(null);
   const [role, setRole] = useState<RolePreset>("顧問");
+  // 職稱由受邀者自填，管理員可在這裡修改（10/29 會議）
+  const [title, setTitle] = useState("");
   useEffect(() => {
     if (m) {
       setDraft({ ...m.perms });
       setRole(m.role);
+      setTitle(m.title);
     }
   }, [m?.id]);
 
   const changes = useMemo(() => (m && draft ? (Object.keys(draft) as (keyof Perms)[]).filter((k) => draft[k] !== m.perms[k]) : []), [m, draft]);
-  const dirty = !!m && (changes.length > 0 || role !== m.role);
+  const titleChanged = !!m && m.status === "active" && !!title.trim() && title.trim() !== m.title;
+  const extra = (m && role !== m.role ? 1 : 0) + (titleChanged ? 1 : 0);
+  const dirty = !!m && (changes.length > 0 || extra > 0);
   const matchesPreset = draft && JSON.stringify(draft) === JSON.stringify(PRESETS[role]);
   // 擁有者固定保有成員與權限、系統設定，避免沒有人能管理工作空間；其餘可依實際分工調整
   const owner = !!m?.isOwner;
@@ -32,17 +37,20 @@ export function MemberDrawer({ id, onClose }: { id: string | null; onClose: () =
 
   const save = () => {
     if (!m || !draft) return;
-    s.updateMember(m.id, (x) => ({ ...x, perms: draft, role }));
-    const summary = changes
-      .slice(0, 4)
-      .map((k) => (k === "casesScope" ? `案件範圍→${draft.casesScope === "all" ? "全部" : "僅參與"}` : `${LABEL[k]}${draft[k] ? "開啟" : "關閉"}`))
-      .join("、");
-    s.log({ module: "成員與權限", target: m.name, action: "調整權限", before: role !== m.role ? m.role : undefined, after: (summary + (changes.length > 4 ? ` 等 ${changes.length} 項` : "")) || role });
-    s.toast(`已更新 ${m.nickname ?? m.name} 的權限`);
+    s.updateMember(m.id, (x) => ({ ...x, perms: draft, role, title: titleChanged ? title.trim() : x.title }));
+    if (titleChanged) s.log({ module: "成員與權限", target: m.name, action: "修改職稱", before: m.title, after: title.trim() });
+    if (changes.length || role !== m.role) {
+      const summary = changes
+        .slice(0, 4)
+        .map((k) => (k === "casesScope" ? `案件範圍→${draft.casesScope === "all" ? "全部" : "僅參與"}` : `${LABEL[k]}${draft[k] ? "開啟" : "關閉"}`))
+        .join("、");
+      s.log({ module: "成員與權限", target: m.name, action: "調整權限", before: role !== m.role ? m.role : undefined, after: (summary + (changes.length > 4 ? ` 等 ${changes.length} 項` : "")) || role });
+    }
+    s.toast(`已更新 ${m.nickname ?? m.name} 的設定`);
     onClose();
   };
 
-  useLeaveGuard(dirty ? changes.length + (m && role !== m.role ? 1 : 0) : 0, save, () => m && (setDraft({ ...m.perms }), setRole(m.role)));
+  useLeaveGuard(dirty ? changes.length + extra : 0, save, () => m && (setDraft({ ...m.perms }), setRole(m.role), setTitle(m.title)));
   const close = () => s.guarded(onClose);
 
   return (
@@ -57,7 +65,7 @@ export function MemberDrawer({ id, onClose }: { id: string | null; onClose: () =
             <AnimatePresence>
               {dirty && (
                 <motion.span initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} className="text-[12.5px] text-ink-600">
-                  {changes.length + (role !== m.role ? 1 : 0)} 項未儲存的變更
+                  {changes.length + extra} 項未儲存的變更
                 </motion.span>
               )}
             </AnimatePresence>
@@ -100,6 +108,16 @@ export function MemberDrawer({ id, onClose }: { id: string | null; onClose: () =
               </div>
             )}
           </div>
+
+          {m.status === "active" && (
+            <div className="flex items-center justify-between gap-4 rounded-xl border border-ink-200 p-4">
+              <div>
+                <p className="text-[13.5px] font-semibold text-ink-900">職稱</p>
+                <p className="mt-0.5 text-[12px] text-ink-500">成員加入時自行填寫，可在此修改</p>
+              </div>
+              <Input value={title} onChange={(e) => setTitle(e.target.value)} className={cn("w-48", titleChanged && "border-brand-400 bg-brand-50/40")} />
+            </div>
+          )}
 
           <div className="rounded-xl border border-ink-200 p-4">
             <div className="flex items-center justify-between gap-4">

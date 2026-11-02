@@ -52,7 +52,8 @@ export type Route =
   | { page: "gmail"; threadId?: string }
   | { page: "settings"; tab?: "members" | "notify" | "items" | "workspace"; memberId?: string };
 
-export type Screen = "login" | "invite" | "onboarding" | "app";
+// denied：Google 驗證成功但不是有效成員；setup：部署時指定的擁有者第一次登入
+export type Screen = "login" | "invite" | "onboarding" | "denied" | "setup" | "app";
 
 type Guard = { count: number; save: () => void; discard: () => void };
 
@@ -102,11 +103,21 @@ function initialNotifs(s: State): Record<string, Notif> {
   return map;
 }
 
+// 手動改狀態要寫入的欄位。改回續證期代表要續證，一併取消「本次不續證」，案件才不會停在結案回不去
+const statusPatch = (c: Case, status: CaseStatus, settings: Settings) => {
+  const renewing = status === "續證期";
+  const derived = deriveStatus(renewing ? { ...c, noRenew: false } : c, settings);
+  return { ...(renewing ? { noRenew: false } : {}), ...(status === derived ? { manualStatus: undefined, manualBasis: undefined } : { manualStatus: status, manualBasis: derived }) };
+};
+
 function useStoreValue() {
   const [state, setState] = useState<State>(initialState);
   const [screen, setScreen] = useState<Screen>(() => (param("screen") as Screen) ?? (param("as") ? "app" : "login"));
   const [userId, setUserId] = useState<string>(() => param("as") ?? "exec1");
   const [inviteId, setInviteId] = useState<string | null>(() => param("member"));
+  const [deniedEmail, setDeniedEmail] = useState<string | null>(() => param("email"));
+  // 給客戶對焦用的方案切換，放在 store 讓換案件時不會跳回預設
+  const [mailView, setMailView] = useState<"full" | "log">(() => (param("mailView") === "log" ? "log" : "full"));
   const [route, setRoute] = useState<Route>(() => {
     const page = param("page");
     if (!page) return { page: "dashboard" };
@@ -218,8 +229,7 @@ function useStoreValue() {
     emailImpact: (id: string, status: CaseStatus) => {
       const c = state.cases.find((x) => x.id === id);
       if (!c) return [];
-      const derived = deriveStatus(c, state.settings);
-      const next = status === derived ? { manualStatus: undefined, manualBasis: undefined } : { manualStatus: status, manualBasis: derived };
+      const next = statusPatch(c, status, state.settings);
       const before = new Set(hitsOf(state).map((h) => h.key));
       return hitsOf({ ...state, cases: state.cases.map((x) => (x.id === id ? { ...x, ...next } : x)) }).filter((h) => h.email && h.caseId === id && !before.has(h.key));
     },
@@ -229,8 +239,7 @@ function useStoreValue() {
       if (!c) return;
       const from = caseStatus(c, state.settings);
       if (from === status) return;
-      const derived = deriveStatus(c, state.settings);
-      const next = status === derived ? { manualStatus: undefined, manualBasis: undefined } : { manualStatus: status, manualBasis: derived };
+      const next = statusPatch(c, status, state.settings);
       setState((s) => ({ ...s, cases: s.cases.map((x) => (x.id === id ? { ...x, ...next } : x)) }));
       log({ module: "案件", caseId: id, target: "案件狀態", action: "變更狀態", before: from, after: status });
       toast(`已改為「${status}」`);
@@ -241,6 +250,23 @@ function useStoreValue() {
       setRoute({ page: "dashboard" });
     },
     logout: () => guarded(() => setScreen("login")),
+    // 未受邀、邀請過期、停權、移除一律走同一個畫面，不透露是哪一種
+    deny: (email: string) => {
+      setDeniedEmail(email);
+      setInviteId(null);
+      setScreen("denied");
+    },
+    finishSetup: (workspaceName: string) => {
+      setState((s) => ({
+        ...s,
+        settings: { ...s.settings, workspaceName },
+        audit: [{ id: uid("a"), time: nowStamp(), actor: "exec1", module: "系統設定", target: "工作空間", action: "完成首次設定", after: workspaceName }, ...s.audit],
+      }));
+      setUserId("exec1");
+      setScreen("app");
+      setRoute({ page: "settings", tab: "members" });
+      toast("設定完成，接著邀請同仁加入");
+    },
     switchUser: (id: string) => guarded(() => {
       setUserId(id);
       setRoute({ page: "dashboard" });
@@ -311,6 +337,7 @@ function useStoreValue() {
     addTravel: (t: Travel) => setState((s) => ({ ...s, travel: [t, ...s.travel] })),
     updateTravel: (id: string, patch: Partial<Travel>) =>
       setState((s) => ({ ...s, travel: s.travel.map((t) => (t.id === id ? { ...t, ...patch } : t)) })),
+    addPayable: (p: Payable) => setState((s) => ({ ...s, payables: [p, ...s.payables] })),
     updatePayable: (id: string, patch: Partial<Payable>) =>
       setState((s) => ({ ...s, payables: s.payables.map((p) => (p.id === id ? { ...p, ...patch } : p)) })),
     updateSettings: (patch: Partial<Settings>) => setState((s) => ({ ...s, settings: { ...s.settings, ...patch } })),
@@ -341,6 +368,9 @@ function useStoreValue() {
     perms,
     route,
     inviteId,
+    deniedEmail,
+    mailView,
+    setMailView,
     toasts,
     notifs,
     myNotifs,

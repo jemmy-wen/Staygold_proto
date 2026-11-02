@@ -36,8 +36,8 @@ const ICONS: Record<NotifType, React.ReactNode> = {
   待回簽: <FileSignature />,
   堂數不符: <CalendarX2 />,
   信件待確認: <MailQuestion />,
-  "發票待開立（第一期）": <Receipt />,
-  "發票待開立（取證後各期）": <Receipt />,
+  發票開立申請: <Receipt />,
+  尚未申請發票: <Receipt />,
   收款逾期: <FileWarning />,
   差旅費填報提醒: <Car />,
   差旅費未歸戶: <Car />,
@@ -147,9 +147,9 @@ function NotifRow({ n, onPreview }: { n: Notif; onPreview: () => void }) {
             variant="ghost"
             icon={<Ban className="size-3.5" />}
             onClick={() => {
-              s.updateCase(c.id, (x) => ({ ...x, noRenew: true }));
+              s.updateCase(c.id, (x) => ({ ...x, noRenew: true, manualStatus: undefined, manualBasis: undefined }));
               s.log({ module: "案件", caseId: c.id, target: "續證", action: "標記本次不續證" });
-              s.toast("已標記本次不續證，通知已結束");
+              s.toast("已標記本次不續證，案件轉為結案", "success", { label: "復原", run: () => s.updateCase(c.id, (x) => ({ ...x, noRenew: false, manualStatus: c.manualStatus, manualBasis: c.manualBasis })) });
             }}
           >
             本次不續證

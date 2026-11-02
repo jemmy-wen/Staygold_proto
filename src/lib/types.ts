@@ -1,5 +1,9 @@
-// 權限層級沿用恆永「權限」分頁的三級：高－主管、中－專員、低－顧問；細項再以開關調整
-export type RolePreset = "主管" | "專員" | "顧問";
+// 權限層級沿用恆永「權限」分頁的三級：高－主管、中－專員、低－顧問，另加外部顧問（10/29 會議）；細項再以開關調整
+export type RolePreset = "主管" | "專員" | "顧問" | "外部顧問";
+
+// 個人的 Google 服務授權：登入只取得基本身分，各服務由本人另外授權
+export type GService = "gmail" | "drive" | "calendar";
+export type GConn = "connected" | "expired" | "none";
 
 export type Perms = {
   dashboard: boolean;
@@ -45,6 +49,7 @@ export type Member = {
   color: string;
   avatar?: string; // 頭像圖片路徑
   perms: Perms;
+  google?: Partial<Record<GService, GConn>>; // 未列出的服務：已加入的成員視為已連線，邀請中視為未連線
 };
 
 export type Customer = {
@@ -91,6 +96,7 @@ export type CaseStatus =
   | "輔導中"
   | "稽核中"
   | "已取證"
+  | "結案"
   | "續證期";
 
 export type ReviewState = "none" | "drafting" | "content" | "price" | "approved";
@@ -110,9 +116,13 @@ export type Period = {
   n: number;
   pct: number;
   amount: number; // 未稅
-  trigger: "開課" | "取證" | "自訂";
+  trigger: "開課" | "取證" | "自訂"; // 預計開票時機，只供參考，不會自動轉待開立
   customDate?: string;
-  notifyDate?: string; // 通知財務開票的日期
+  // 申請開立：由案件負責人在財務分頁送出，送出後通知財務（10/29 會議：不由系統自動觸發）
+  requestedAt?: string;
+  requestedBy?: string;
+  requestNote?: string;
+  addedByFinance?: boolean; // 財務直接新增，不是負責人申請，不需要再通知財務
   invoiceNo?: string;
   invoiceDate?: string;
   invoiceKind?: "紙本" | "電子發票";
@@ -175,6 +185,17 @@ export type CalEvent = {
   link: string;
 };
 
+// 一串信裡較早的一封；串上的 fromName、body、date 等欄位是最新一封
+export type ThreadMessage = {
+  fromName: string;
+  fromEmail: string;
+  to: string;
+  date: string;
+  time: string;
+  body: string[];
+  hasAttachment?: string;
+};
+
 export type EmailThread = {
   id: string;
   mailbox: string; // member id
@@ -187,6 +208,7 @@ export type EmailThread = {
   date: string;
   time: string;
   count: number;
+  earlier?: ThreadMessage[]; // 由舊到新，歸檔後案件成員可讀整串內容
   unread?: boolean;
   hasAttachment?: string;
   state: "suggested" | "linked" | "ignored" | "none";
@@ -246,8 +268,8 @@ export type NotifType =
   | "待回簽"
   | "堂數不符"
   | "信件待確認"
-  | "發票待開立（第一期）"
-  | "發票待開立（取證後各期）"
+  | "發票開立申請"
+  | "尚未申請發票"
   | "收款逾期"
   | "差旅費填報提醒"
   | "差旅費未歸戶"

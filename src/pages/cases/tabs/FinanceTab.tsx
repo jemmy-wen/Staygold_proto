@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { CircleAlert, Pencil, Plus, Trash2 } from "lucide-react";
+import { CircleAlert, Pencil, Plus, Receipt, Trash2 } from "lucide-react";
 import { useStore } from "../../../lib/store";
 import type { Case, Period } from "../../../lib/types";
-import { cn, contractTotal, dueDateOf, fmtDate, money, periodState, tax, triggerLabel, uid, withTax } from "../../../lib/utils";
+import { cn, contractTotal, dueDateOf, fmtDate, missingInvoice, money, periodState, tax, triggerLabel, uid, withTax } from "../../../lib/utils";
 import { Badge, Button, Card, StatGroup } from "../../../components/ui";
-import { InvoicePill, PayPill, savePeriodChanges } from "../../../components/finance";
+import { InvoicePill, PayPill, RequestCell, RequestInvoiceModal, savePeriodChanges } from "../../../components/finance";
 import { GridCell, useGridDraft, useLeaveGuard, type Change } from "../../../components/grid";
 
 export function FinanceTab({ c }: { c: Case }) {
@@ -13,7 +13,8 @@ export function FinanceTab({ c }: { c: Case }) {
   const total = contractTotal(c);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<Period[]>(c.periods);
-  const rows = c.periods.map((p) => ({ p, st: periodState(c, p, s.settings.payDays) }));
+  const [requesting, setRequesting] = useState<Period | null>(null);
+  const rows = c.periods.map((p) => ({ p, st: periodState(p, s.settings.payDays) }));
   const invoiced = rows.filter((r) => r.p.invoiceNo).reduce((n, r) => n + withTax(r.p.amount), 0);
   const paid = rows.filter((r) => r.p.paidDate).reduce((n, r) => n + withTax(r.p.amount), 0);
   const canPlan = s.perms.casesEdit || s.perms.financeRecord;
@@ -54,6 +55,13 @@ export function FinanceTab({ c }: { c: Case }) {
         ]}
       />
 
+      {missingInvoice(c, s.statusOf(c)) && (
+        <div className="flex items-center gap-3 rounded-xl border border-ink-200 bg-white px-4 py-3 text-[13px] text-ink-700">
+          <Receipt className="size-4 shrink-0" />
+          <span className="flex-1">案件目前為「{s.statusOf(c)}」，還沒有申請過任何一期發票</span>
+        </div>
+      )}
+
       {missingInvoiceInfo && (
         <div className="flex items-center gap-3 rounded-xl border border-ink-200 bg-white px-4 py-3 text-[13px] text-ink-700">
           <CircleAlert className="size-4 shrink-0" />
@@ -86,7 +94,7 @@ export function FinanceTab({ c }: { c: Case }) {
                   <th className="pb-2 font-medium">期數</th>
                   <th className="pb-2 font-medium">比例</th>
                   <th className="pb-2 font-medium">金額（未稅）</th>
-                  <th className="pb-2 font-medium">開票時機</th>
+                  <th className="pb-2 font-medium">預計開票時機</th>
                   <th className="pb-2" />
                 </tr>
               </thead>
@@ -151,7 +159,7 @@ export function FinanceTab({ c }: { c: Case }) {
               </colgroup>
               <thead>
                 <tr>
-                  {["期數", "開票時機", "通知開票日", "未稅", "稅金", "含稅", "發票狀態", "發票號碼", "開立日期", "約定付款日", "請款狀態", "收款日期"].map((h, i) => (
+                  {["期數", "預計開票時機", "申請開票", "未稅", "稅金", "含稅", "發票狀態", "發票號碼", "開立日期", "約定付款日", "請款狀態", "收款日期"].map((h, i) => (
                     <th key={h} className={cn("h-10 border-b border-r border-ink-200 bg-ink-25 px-3 text-left text-[12px] font-medium text-ink-500 last:border-r-0", i === 0 && "pl-5", [3, 4, 5].includes(i) && "text-right")}>
                       {h}
                     </th>
@@ -161,7 +169,7 @@ export function FinanceTab({ c }: { c: Case }) {
               <tbody>
                 {rows.map(({ p, st }, r) => {
                   const key = `${c.id}:${p.id}`;
-                  const cell = (field: "notifyDate" | "amount" | "invoiceNo" | "invoiceDate" | "dueDate" | "paidDate", col: number, extra: Partial<Parameters<typeof GridCell>[0]> = {}) => {
+                  const cell = (field: "amount" | "invoiceNo" | "invoiceDate" | "dueDate" | "paidDate", col: number, extra: Partial<Parameters<typeof GridCell>[0]> = {}) => {
                     const orig = String((field === "dueDate" ? dueDateOf(p, s.settings.payDays) : p[field]) ?? "");
                     return <GridCell pos={[r, col]} value={grid.get(key, field, orig)} dirty={grid.dirty(key, field)} editable={can} type="date" format={fmtDate} onChange={(v) => grid.set(key, field, orig, v)} {...extra} />;
                   };
@@ -173,10 +181,10 @@ export function FinanceTab({ c }: { c: Case }) {
                         <span className="font-medium">第 {p.n} 期</span>
                         <span className="ml-1.5 text-ink-400">{p.pct}%</span>
                       </td>
-                      <td className={cn(plain, "truncate text-ink-600")} title={st.triggered && st.triggeredOn ? `已觸發 ${fmtDate(st.triggeredOn)}` : undefined}>
-                        {triggerLabel(p)}
+                      <td className={cn(plain, "truncate text-ink-600")}>{triggerLabel(p)}</td>
+                      <td className={plain}>
+                        <RequestCell c={c} p={p} onRequest={() => setRequesting(p)} />
                       </td>
-                      {cell("notifyDate", 2)}
                       {cell("amount", 3, { type: "number", align: "right", format: (v) => money(Number(v)) })}
                       <td className={cn(plain, "text-right tabular-nums text-ink-500")}>{money(tax(p.amount))}</td>
                       <td className={cn(plain, "text-right font-medium tabular-nums")}>{money(withTax(p.amount))}</td>
@@ -198,6 +206,7 @@ export function FinanceTab({ c }: { c: Case }) {
           </div>
         )}
       </Card>
+      {requesting && <RequestInvoiceModal c={c} p={requesting} onClose={() => setRequesting(null)} />}
 
       <div className="grid grid-cols-2 gap-5">
         <Card title="開票內容">

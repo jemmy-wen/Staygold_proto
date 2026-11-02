@@ -29,7 +29,7 @@ export function Button({
         variant === "dark" && "bg-brand-500 text-white shadow-card hover:bg-brand-600",
         variant === "brand" && "bg-brand-500 text-white shadow-card hover:bg-brand-600",
         variant === "soft" && "bg-brand-50 text-brand-700 hover:bg-brand-100",
-        variant === "outline" && "border border-brand-500 bg-white text-brand-700 shadow-card hover:bg-brand-50",
+        variant === "outline" && "border border-brand-300 bg-white text-brand-700 shadow-card hover:border-brand-400 hover:bg-brand-50",
         variant === "ghost" && "text-ink-600 hover:bg-ink-100 hover:text-ink-900",
         variant === "danger" && "border border-ink-200 bg-white text-rose-600 shadow-card hover:border-rose-200 hover:bg-rose-50",
         className,
@@ -66,6 +66,7 @@ const STATUS_GROUP: Record<CaseStatus, "neutral" | "run" | "renew"> = {
   輔導中: "run",
   稽核中: "run",
   已取證: "run",
+  結案: "neutral",
   續證期: "renew",
 };
 const GROUP_STYLE = {
@@ -86,7 +87,7 @@ export function StatusIcon({ status, size = 14 }: { status: CaseStatus; size?: n
         <circle cx="7" cy="7" r="5.5" fill="none" stroke={color} strokeWidth="1.5" strokeDasharray="2.2 1.8" />
       </svg>
     );
-  if (status === "已取證")
+  if (status === "已取證" || status === "結案")
     return (
       <svg width={size} height={size} viewBox="0 0 14 14" className="shrink-0">
         <circle cx="7" cy="7" r="6.25" fill={color} />

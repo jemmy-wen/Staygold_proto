@@ -246,7 +246,7 @@ function Finance({ cases, range }: { cases: Case[]; range: Range }) {
   const s = useStore();
   const r = rangeOf(range);
   const label = RANGE_LABEL[range];
-  const ar = cases.flatMap((c) => c.periods.map((p) => ({ c, p, st: periodState(c, p, s.settings.payDays) }))).filter((x) => x.st.pay === "待收款");
+  const ar = cases.flatMap((c) => c.periods.map((p) => ({ c, p, st: periodState(p, s.settings.payDays) }))).filter((x) => x.st.pay === "待收款");
   const signed = cases.filter((c) => inRange(c.milestones.signed, r) && contractTotal(c) > 0);
   const paid = cases.flatMap((c) => c.periods).filter((p) => inRange(p.paidDate, r));
   const toFinance = s.perms.financeCenter ? () => s.go({ page: "finance", tab: "billing" }) : undefined;

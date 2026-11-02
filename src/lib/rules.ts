@@ -1,6 +1,6 @@
 import type { CalEvent, Case, Customer, EmailThread, Member, NotifHit, Recipient, Settings, Travel } from "./types";
 import { effectivePerms } from "./perms";
-import { TODAY, caseStatus, daysSince, daysUntil, fmtDate, periodState, toDate } from "./utils";
+import { TODAY, caseStatus, daysSince, daysUntil, fmtDate, missingInvoice, money, periodState, toDate } from "./utils";
 
 export const sessionsOf = (c: Case, events: CalEvent[]) =>
   events.filter((e) => e.caseId === c.id && e.kind === "排課").sort((a, b) => a.date.localeCompare(b.date));
@@ -41,12 +41,15 @@ export function computeNotifications(ctx: Ctx): NotifHit[] {
     if ((status === "已簽約排課中" || status === "輔導中") && c.contractSessions > 0 && sessions > c.contractSessions)
       out.push({ ...base, key: `sess:${c.id}`, type: "堂數不符", group: "案件進度", title: `${label(c)} 行事曆 ${sessions} 堂，合約 ${c.contractSessions} 堂`, desc: "行事曆已排堂數超過合約堂數，若為追加課程請確認是否需補簽或調整請款。", recipients: ["owner"], email: false, done: "堂數一致", tab: "schedule" });
 
+    // 發票由負責人申請後才通知財務；系統不依開課、取證自動觸發（10/29 會議）
+    if (missingInvoice(c, status))
+      out.push({ ...base, key: `noinv:${c.id}`, type: "尚未申請發票", group: "發票與請款", title: `${label(c)} 目前為「${status}」，尚未申請任何一期發票`, desc: "案件已進入輔導階段，但還沒有申請過發票。請確認是否該申請第一期，或與財務確認收款安排。", recipients: ["owner", "finance"], email: false, done: "申請任一期發票", tab: "finance" });
     for (const p of c.periods) {
-      const st = periodState(c, p, settings.payDays);
-      if (st.invoice === "待開立" && p.n === 1 && p.trigger === "開課")
-        out.push({ ...base, key: `inv:${c.id}:${p.id}`, type: "發票待開立（第一期）", group: "發票與請款", title: `${label(c)} 第 1 期發票待開立`, desc: m.courseStart ? `第一堂課於 ${fmtDate(m.courseStart)} 開課，本期 ${p.pct}%。` : `案件已進入輔導中，本期 ${p.pct}%。`, recipients: ["finance", "admin"], email: true, done: "登記發票已開立", goto: "finance" });
-      else if (st.invoice === "待開立")
-        out.push({ ...base, key: `inv:${c.id}:${p.id}`, type: "發票待開立（取證後各期）", group: "發票與請款", title: `${label(c)} 第 ${p.n} 期發票待開立`, desc: p.trigger === "取證" ? `已於 ${fmtDate(m.certified)} 取證，本期 ${p.pct}%。` : `約定開票日 ${fmtDate(p.customDate)}，本期 ${p.pct}%。`, recipients: ["finance", "admin"], email: true, done: "登記發票已開立", goto: "finance" });
+      const st = periodState(p, settings.payDays);
+      if (st.invoice === "待開立" && !p.addedByFinance) {
+        const by = members.find((x) => x.id === p.requestedBy);
+        out.push({ ...base, key: `inv:${c.id}:${p.id}`, type: "發票開立申請", group: "發票與請款", title: `${label(c)} 申請開立第 ${p.n} 期發票`, desc: `${by?.nickname ?? by?.name ?? "負責人"} 於 ${fmtDate(p.requestedAt)} 申請，本期未稅 ${money(p.amount)}${p.requestNote ? `。備註：${p.requestNote}` : "。"}`, recipients: ["finance", "admin"], email: true, done: "登記發票已開立", goto: "finance" });
+      }
       if (st.pay === "待收款" && st.overdue > 0)
         out.push({ ...base, key: `due:${c.id}:${p.id}`, type: "收款逾期", group: "發票與請款", title: `${label(c)} 第 ${p.n} 期超過約定付款日 ${st.overdue} 天未收款`, desc: `發票 ${p.invoiceNo} 於 ${fmtDate(p.invoiceDate)} 開立，約定付款日 ${fmtDate(st.due)}。`, recipients: ["finance", "exec"], email: false, done: "登記已收款", goto: "finance" });
     }

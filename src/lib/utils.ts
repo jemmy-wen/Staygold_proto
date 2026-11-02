@@ -19,6 +19,56 @@ export const iso = (x: Date) =>
   `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
 export const fmtDate = (d?: string) => (d ? d.replace(/-/g, "/") : "—");
 export const fmtShort = (d?: string) => (d ? `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}` : "—");
+// 信件關鍵字：純規則比對固定詞庫，不用 AI。較具體的詞排前面，泛稱（稽核、課程、時程）排最後
+const MAIL_KEYWORDS: [string, RegExp][] = [
+  ["報價", /報價|費用|費率/],
+  ["企劃書", /企劃書/],
+  ["合約", /合約/],
+  ["用印", /用印/],
+  ["預算", /預算/],
+  ["發票", /發票/],
+  ["續證", /續證/],
+  ["缺失改善", /缺失|改善/],
+  ["內部稽核", /內部稽核/],
+  ["管理審查", /管理審查|管審/],
+  ["文件檢核", /文件總檢|檢核|文件清單/],
+  ["批次紀錄", /批次紀錄/],
+  ["訓練紀錄", /訓練紀錄/],
+  ["盤查邊界", /邊界/],
+  ["範疇三", /範疇三/],
+  ["運輸商", /運輸/],
+  ["排放源", /排放源/],
+  ["碳足跡", /碳足跡/],
+  ["BOM 表", /BOM/],
+  ["質量平衡", /質量平衡/],
+  ["永續聲明", /永續聲明/],
+  ["環境考量面", /環境考量面/],
+  ["評分標準", /評分標準/],
+  ["TC 申請", /TC 申請/],
+  ["出貨單", /出貨單/],
+  ["化學品", /化學品/],
+  ["廢水", /廢水/],
+  ["平面圖", /平面圖/],
+  ["原料來源", /原料來源/],
+  ["供應鏈追溯", /追溯/],
+  ["簽到表", /簽到表/],
+  ["教材", /教材/],
+  ["作業", /作業/],
+  ["出席名單", /出席名單/],
+  ["會議紀錄", /會議紀錄/],
+  ["改期", /可否改到/],
+  ["拜訪", /拜訪|到廠/],
+  ["窗口", /對口|窗口/],
+  ["寄送地址", /寄送地址|寄到/],
+  ["證書", /證書/],
+  ["輔導方式", /輔導(流程|方式)/],
+  ["稽核", /稽核/],
+  ["課程", /堂課|第.堂|上課|課程/],
+  ["時程", /時程/],
+];
+// 不設上限：要能溯源，比對到的詞都得留下，否則點關鍵字會漏信
+export const mailKeywords = (text: string) => MAIL_KEYWORDS.filter(([, re]) => re.test(text)).map(([k]) => k);
+
 const WEEK = ["日", "一", "二", "三", "四", "五", "六"];
 export const weekday = (d: string) => `週${WEEK[toDate(d).getDay()]}`;
 export const weekRange = (d = TODAY) => {
@@ -87,6 +137,7 @@ export const STATUSES: CaseStatus[] = [
   "輔導中",
   "稽核中",
   "已取證",
+  "結案",
   "續證期",
 ];
 
@@ -100,11 +151,12 @@ export const STATUS_PHASE: Record<CaseStatus, string> = {
   輔導中: "輔導執行",
   稽核中: "稽核取證",
   已取證: "稽核取證",
+  結案: "結案",
   續證期: "續證",
 };
 
-// 進行中：尚未取證的案件（已取證、續證期另由續證雷達追蹤）
-export const ACTIVE_STATUSES: CaseStatus[] = STATUSES.filter((x) => x !== "已取證" && x !== "續證期");
+// 進行中：尚未取證的案件（已取證、結案、續證期另由續證雷達追蹤）
+export const ACTIVE_STATUSES: CaseStatus[] = STATUSES.filter((x) => x !== "已取證" && x !== "結案" && x !== "續證期");
 
 export const lineOf = (item: string) => (item.includes("ISCC") ? "ISCC" : "ISCC 以外");
 
@@ -118,6 +170,7 @@ export const STATUS_TONE: Record<CaseStatus, string> = {
   輔導中: "bg-brand-50 text-brand-700",
   稽核中: "bg-orange-50 text-orange-700",
   已取證: "bg-emerald-50 text-emerald-700",
+  結案: "bg-ink-100 text-ink-600",
   續證期: "bg-rose-50 text-rose-700",
 };
 
@@ -131,6 +184,7 @@ export const STATUS_DOT: Record<CaseStatus, string> = {
   輔導中: "bg-brand-500",
   稽核中: "bg-orange-500",
   已取證: "bg-emerald-500",
+  結案: "bg-ink-400",
   續證期: "bg-rose-500",
 };
 
@@ -138,6 +192,7 @@ export const STATUS_DOT: Record<CaseStatus, string> = {
 export function deriveStatus(c: Case, s: Pick<Settings, "renewDays">): CaseStatus {
   const m = c.milestones;
   if (m.certified) {
+    if (c.noRenew) return "結案";
     if (m.certExpiry && daysUntil(m.certExpiry) <= s.renewDays[0]) return "續證期";
     return "已取證";
   }
@@ -162,27 +217,25 @@ export const statusSuggestion = (c: Case, s: Pick<Settings, "renewDays">): CaseS
   return d !== c.manualBasis && STATUSES.indexOf(d) > STATUSES.indexOf(c.manualStatus) ? d : undefined;
 };
 
-export type InvoiceStatus = "未觸發" | "待開立" | "已開立";
+export type InvoiceStatus = "未申請" | "待開立" | "已開立";
 export type PayStatus = "—" | "待收款" | "已收款";
 
 // 約定付款日：有填以填的為準，未填時為開立日期加系統設定的付款天數
 export const dueDateOf = (p: Period, payDays: number) => p.dueDate ?? (p.invoiceDate ? addDays(p.invoiceDate, payDays) : undefined);
 
-export function periodState(c: Case, p: Period, payDays: number) {
-  const triggered =
-    p.trigger === "開課"
-      ? (!!c.milestones.courseStart && c.milestones.courseStart <= TODAY) || (!!c.manualStatus && STATUSES.indexOf(c.manualStatus) >= STATUSES.indexOf("輔導中")) // 手動改到輔導中以後視為已開課
-      : p.trigger === "取證"
-        ? !!c.milestones.certified || c.manualStatus === "已取證" || c.manualStatus === "續證期" // PRD 3.11：案件狀態轉為「已取證」時
-        : !!p.customDate && p.customDate <= TODAY;
-  const invoice: InvoiceStatus = p.invoiceNo ? "已開立" : triggered ? "待開立" : "未觸發";
+// 發票狀態只看人的動作：負責人申請後轉待開立，財務登記發票號碼後轉已開立；預計開票時機不會自動觸發（10/29 會議）
+export function periodState(p: Period, payDays: number) {
+  const invoice: InvoiceStatus = p.invoiceNo ? "已開立" : p.requestedAt ? "待開立" : "未申請";
   const pay: PayStatus = p.paidDate ? "已收款" : p.invoiceNo ? "待收款" : "—";
   const due = p.invoiceNo ? dueDateOf(p, payDays) : undefined;
   const overdue = due && !p.paidDate ? Math.max(0, daysSince(due)) : 0; // 超過約定付款日的天數
-  const triggeredOn =
-    p.trigger === "開課" ? c.milestones.courseStart : p.trigger === "取證" ? c.milestones.certified : p.customDate;
-  return { triggered, invoice, pay, overdue, due, triggeredOn };
+  return { invoice, pay, overdue, due };
 }
+
+// 案件進入輔導中以後仍沒有任何一期申請或開立發票，提醒負責人與財務確認
+export const INVOICE_REMIND_FROM: CaseStatus = "輔導中";
+export const missingInvoice = (c: Case, status: CaseStatus) =>
+  status !== "結案" && STATUSES.indexOf(status) >= STATUSES.indexOf(INVOICE_REMIND_FROM) && !c.periods.some((p) => p.requestedAt || p.invoiceNo);
 
 export const triggerLabel = (p: Period) =>
   p.trigger === "開課" ? "第一堂課開課當月" : p.trigger === "取證" ? "取證後" : `自訂 ${fmtDate(p.customDate)}`;

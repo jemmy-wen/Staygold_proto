@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { ArrowLeft, Check, Mail, UserCircle2 } from "lucide-react";
+import { Mail } from "lucide-react";
 import { displayName, useStore } from "../../lib/store";
-import { Avatar, Badge, Button } from "../../components/ui";
-import { AuthFrame, GoogleMark } from "./Login";
+import { Badge, Button } from "../../components/ui";
+import { AuthFrame, GoogleChooser, GoogleMark } from "./Login";
 import { BrandMark } from "../../components/brand";
 
 export function InviteAccept() {
@@ -53,27 +53,8 @@ export function InviteAccept() {
           </Button>
         </div>
       ) : (
-        <div className="w-[420px] animate-rise rounded-2xl border border-ink-200 bg-white p-8 shadow-pop">
-          <div className="flex flex-col items-center text-center">
-            <GoogleMark className="size-8" />
-            <h2 className="mt-4 text-[20px] font-medium text-ink-900">選擇帳戶</h2>
-            <p className="mt-1 text-[13px] text-ink-500">以繼續使用「恆永顧問內部系統」</p>
-          </div>
-          <div className="mt-6 divide-y divide-ink-100 rounded-xl border border-ink-200">
-            <button onClick={s.startOnboarding} className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-ink-25">
-              <Avatar m={inv} size={32} />
-              <span className="min-w-0 flex-1">
-                <span className="block text-[13px] font-medium text-ink-900">{inv.email.split("@")[0]}</span>
-                <span className="block text-[12px] text-ink-500">{inv.email}</span>
-              </span>
-              <Check className="size-4 text-ink-700" />
-            </button>
-            <div className="flex items-center gap-3 px-4 py-3 text-[13px] text-ink-400">
-              <UserCircle2 className="size-8 text-ink-300" />
-              使用其他帳戶
-            </div>
-          </div>
-        </div>
+        // 選到與受邀 Email 不同的 Google 帳號時，與未受邀同樣顯示無權登入
+        <GoogleChooser accounts={[{ email: inv.email, name: inv.email.split("@")[0], m: inv }]} onPick={s.startOnboarding} onOther={() => s.deny("kevin.lai.tw@gmail.com")} />
       )}
     </AuthFrame>
   );

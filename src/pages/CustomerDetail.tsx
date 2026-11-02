@@ -53,7 +53,7 @@ export function CustomerDetail({ id, tab: initial }: { id: string; tab?: string 
   };
 
   const relCount = s.relations.filter((r) => r.from === c.id || r.to === c.id).length;
-  const activeCases = cases.filter((x) => !["已取證", "續證期"].includes(s.statusOf(x))).length;
+  const activeCases = cases.filter((x) => !["已取證", "結案", "續證期"].includes(s.statusOf(x))).length;
   const nextExpiry = cases.map((x) => x.milestones.certExpiry).filter((d): d is string => !!d && daysUntil(d) >= 0).sort()[0];
 
   return (

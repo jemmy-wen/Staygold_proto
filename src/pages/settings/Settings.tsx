@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { BellRing, Building, Calendar, CheckCircle2, HardDrive, ListChecks, Mail, Plus, Users } from "lucide-react";
 import { useStore } from "../../lib/store";
 import { RECIPIENT_LABEL } from "../../lib/rules";
+import { G_LABEL, G_SERVICES, googleOf } from "../../lib/perms";
 import type { NotifType, Recipient, Settings } from "../../lib/types";
 import { Badge, Button, Field, Input, PageHeader, SearchInput, Table, td, th } from "../../components/ui";
 import { useLeaveGuard } from "../../components/grid";
@@ -59,8 +60,8 @@ const NOTIF_SPEC: { type: NotifType; group: string; when: (st: Settings) => stri
   { type: "待回簽", group: "案件進度", when: (st) => `企劃書送出超過 ${st.signWaitDays} 天未回簽`, to: ["owner", "admin"], email: false, done: "登記客戶已回簽" },
   { type: "堂數不符", group: "案件進度", when: () => "Calendar 已排堂數超過合約堂數", to: ["owner"], email: false, done: "堂數一致" },
   { type: "信件待確認", group: "案件進度", when: () => "有系統建議、尚未確認的信件", to: ["owner"], email: false, done: "確認或忽略所有建議" },
-  { type: "發票待開立（第一期）", group: "發票與請款", when: () => "第一堂課開課當月", to: ["finance", "admin"], email: true, done: "登記發票已開立" },
-  { type: "發票待開立（取證後各期）", group: "發票與請款", when: () => "案件轉為「已取證」或到達約定日", to: ["finance", "admin"], email: true, done: "登記發票已開立" },
+  { type: "發票開立申請", group: "發票與請款", when: () => "負責人在案件財務分頁申請開立某一期", to: ["finance", "admin"], email: true, done: "登記發票已開立" },
+  { type: "尚未申請發票", group: "發票與請款", when: () => "案件已到「輔導中」以後，仍沒有任何一期申請或開立", to: ["owner", "finance"], email: false, done: "申請任一期發票" },
   { type: "收款逾期", group: "發票與請款", when: (st) => `待收款且超過約定付款日（未填時為開立後 ${st.payDays} 天）`, to: ["finance", "exec"], email: false, done: "登記已收款" },
   { type: "差旅費填報提醒", group: "差旅費報帳", when: (st) => `每月 ${st.travelRemindDay} 日`, to: ["reporter"], email: false, done: "次月 1 日自動結束" },
   { type: "差旅費未歸戶", group: "差旅費報帳", when: (st) => `標記未歸戶超過 ${st.unassignedDays} 天`, to: ["reporter", "admin"], email: false, done: "指定所屬案件" },
@@ -224,11 +225,8 @@ function WorkspaceSettings() {
     },
     () => setName(s.settings.workspaceName),
   );
-  const svc = [
-    { icon: <Mail />, name: "Gmail", scope: "讀取信件中繼資料、主旨與內文，用於比對候選案件" },
-    { icon: <HardDrive />, name: "Google Drive", scope: "讀取已綁定資料夾的檔案清單" },
-    { icon: <Calendar />, name: "Google Calendar", scope: "讀取排課、稽核、拜訪事件" },
-  ];
+  const ICON = { gmail: <Mail />, drive: <HardDrive />, calendar: <Calendar /> };
+  const active = s.members.filter((m) => m.status === "active");
   return (
     <div className="space-y-5">
       <div>
@@ -242,20 +240,36 @@ function WorkspaceSettings() {
           <Input value={`${owner?.name}（${owner?.email}）`} disabled />
         </Field>
       </div>
+      {/* 各服務由成員本人授權；這裡讓管理者看到誰還沒連線或需要重新連線 */}
       <div className="grid grid-cols-3 gap-4">
-        {svc.map((x) => (
-          <div key={x.name} className="rounded-xl border border-ink-200 bg-white p-5 shadow-card">
-            <div className="flex items-center justify-between">
-              <span className="text-ink-500 [&>svg]:size-5 [&>svg]:stroke-[1.75]">{x.icon}</span>
-              <Badge tone="green">
-                <CheckCircle2 className="size-3" />
-                已串接・唯讀
-              </Badge>
+        {G_SERVICES.map((x) => {
+          const need = active.filter(x.needs);
+          const ok = need.filter((m) => googleOf(m, x.key) === "connected");
+          const pending = need.filter((m) => googleOf(m, x.key) !== "connected");
+          return (
+            <div key={x.key} className="rounded-xl border border-ink-200 bg-white p-5 shadow-card">
+              <div className="flex items-center justify-between">
+                <span className="text-ink-500 [&>svg]:size-5 [&>svg]:stroke-[1.75]">{ICON[x.key]}</span>
+                <Badge tone={pending.length ? "amber" : "green"}>
+                  {!pending.length && <CheckCircle2 className="size-3" />}
+                  已連線 {ok.length}/{need.length}
+                </Badge>
+              </div>
+              <p className="mt-3 text-[14px] font-semibold text-ink-900">{x.name}</p>
+              <p className="mt-1 text-[12.5px] text-ink-600">{x.scope}</p>
+              {pending.length > 0 && (
+                <div className="mt-3 space-y-1.5 border-t border-ink-100 pt-3">
+                  {pending.map((m) => (
+                    <p key={m.id} className="flex items-center justify-between text-[12.5px]">
+                      <span className="text-ink-800">{m.nickname ?? m.name}</span>
+                      <span className="text-ink-500">{G_LABEL[googleOf(m, x.key)]}</span>
+                    </p>
+                  ))}
+                </div>
+              )}
             </div>
-            <p className="mt-3 text-[14px] font-semibold text-ink-900">{x.name}</p>
-            <p className="mt-1 text-[12.5px] text-ink-600">{x.scope}</p>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 import { useStore } from "../lib/store";
 import type { Case, Customer, EmailThread } from "../lib/types";
-import { casePrefix, cn, fmtShort, nextCaseId, nowStamp, uid } from "../lib/utils";
+import { casePrefix, cn, fmtShort, nextCaseId, nowStamp, param, uid } from "../lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
 import { Avatar, Button, Field, Input, Popover, Select, StatusPill, ease } from "../components/ui";
 import { BrandMark } from "../components/brand";
@@ -43,7 +43,12 @@ export function GmailMock({ threadId }: { threadId?: string }) {
   const [openId, setOpenId] = useState<string | null>(threadId ?? null);
   const [panel, setPanel] = useState(true);
   const open = box.find((t) => t.id === openId) ?? null;
-  const pending = box.filter((t) => t.state === "suggested");
+  // 擴充功能任何人都能安裝，但要先以 Google 帳號授權，且是系統成員才有內容（10/29 會議）
+  // Prototype 不分帳號，每次打開都先走一次授權；規格頁用 addon=authed 直接看授權後的畫面
+  const outsider = param("addon") === "outsider";
+  const [authorized, setAuthorized] = useState(param("addon") === "authed");
+  const authed = !outsider && authorized;
+  const pending = authed ? box.filter((t) => t.state === "suggested") : [];
   const owner = s.memberOf(mailboxId);
   const openThread = (id: string) => {
     setOpenId(id);
@@ -113,7 +118,7 @@ export function GmailMock({ threadId }: { threadId?: string }) {
 
         <main className="mr-2 flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl bg-white">
           {open ? (
-            <ThreadView t={open} onBack={() => setOpenId(null)} onPanel={() => setPanel(true)} />
+            <ThreadView t={open} authed={authed} onBack={() => setOpenId(null)} onPanel={() => setPanel(true)} />
           ) : (
             <div className="overflow-y-auto">
               <div className="flex h-12 items-center gap-4 border-b border-[#eceff1] px-4 text-[#444]">
@@ -134,7 +139,7 @@ export function GmailMock({ threadId }: { threadId?: string }) {
                     {t.count > 1 && <span className="ml-1 font-normal text-[#5f6368]">{t.count}</span>}
                   </span>
                   <span className="min-w-0 flex-1 truncate">
-                    <ThreadChip t={t} />
+                    {authed && <ThreadChip t={t} />}
                     {t.subject}
                     <span className="font-normal text-[#5f6368]"> - {t.snippet}</span>
                   </span>
@@ -165,7 +170,9 @@ export function GmailMock({ threadId }: { threadId?: string }) {
                   <X className="size-4" />
                 </button>
               </div>
-              <div className="min-h-0 flex-1 overflow-y-auto p-4 [&_button.inline-flex]:rounded-full">{open ? <Panel key={open.id + open.state} t={open} /> : <Summary pending={pending} onOpen={openThread} />}</div>
+              <div className="min-h-0 flex-1 overflow-y-auto p-4 [&_button.inline-flex]:rounded-full">
+                {outsider ? <AddonNoAccess /> : !authed ? <AddonAuth onDone={() => setAuthorized(true)} /> : open ? <Panel key={open.id + open.state} t={open} /> : <Summary pending={pending} onOpen={openThread} />}
+              </div>
             </motion.aside>
           )}
         </AnimatePresence>
@@ -238,7 +245,7 @@ function ThreadChip({ t }: { t: EmailThread }) {
   return null;
 }
 
-function ThreadView({ t, onBack, onPanel }: { t: EmailThread; onBack: () => void; onPanel: () => void }) {
+function ThreadView({ t, authed, onBack, onPanel }: { t: EmailThread; authed: boolean; onBack: () => void; onPanel: () => void }) {
   const s = useStore();
   const primary = t.suggestedCaseIds?.[0];
   return (
@@ -253,9 +260,9 @@ function ThreadView({ t, onBack, onPanel }: { t: EmailThread; onBack: () => void
       <div className="px-16 py-6">
         <h2 className="flex flex-wrap items-center gap-2 text-[22px] text-[#1f1f1f]">
           {t.subject}
-          <ThreadChip t={t} />
+          {authed && <ThreadChip t={t} />}
         </h2>
-        {t.state === "suggested" && primary && (
+        {authed && t.state === "suggested" && primary && (
           <div className="mt-3 flex items-center gap-3 rounded-xl border border-[#e3e3e3] bg-[#F8FAFD] px-4 py-2.5 text-[13px]">
             <BrandMark size={20} />
             <span className="min-w-0 flex-1 truncate text-[#1f1f1f]">
@@ -308,6 +315,51 @@ function ThreadView({ t, onBack, onPanel }: { t: EmailThread; onBack: () => void
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// 第一次使用：以 Google 帳號授權，確認是系統成員後才顯示建議與歸檔
+function AddonAuth({ onDone }: { onDone: () => void }) {
+  const s = useStore();
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col items-center pt-4 text-center">
+        <BrandMark size={36} />
+        <p className="mt-3 text-[14px] font-medium text-[#1f1f1f]">連結恆永顧問系統</p>
+        <p className="mt-1 text-[12.5px] text-[#5f6368]">第一次使用前需要授權一次</p>
+      </div>
+      <ul className="space-y-2 rounded-xl bg-[#F8FAFD] p-3.5 text-[12.5px] text-[#3c4043]">
+        {["確認你的 Google 帳號是恆永顧問系統的成員", "開啟信件時讀取寄件者、主旨與時間，建議所屬案件", "由你確認後才會歸檔；歸檔後整串信件內容會存入系統，案件成員都看得到"].map((x) => (
+          <li key={x} className="flex items-start gap-2">
+            <Check className="mt-0.5 size-3.5 shrink-0 text-brand-600" />
+            {x}
+          </li>
+        ))}
+      </ul>
+      <Button
+        variant="brand"
+        className="w-full"
+        onClick={() => {
+          s.updateMember(s.me.id, (m) => ({ ...m, google: { ...m.google, gmail: "connected" } }));
+          s.log({ module: "成員與權限", target: s.me.email, action: "授權 Gmail 擴充功能" });
+          s.toast("已連結恆永顧問系統");
+          onDone();
+        }}
+      >
+        以 Google 帳號授權
+      </Button>
+    </div>
+  );
+}
+
+// 非系統成員安裝後：不顯示任何案件資料
+function AddonNoAccess() {
+  return (
+    <div className="flex flex-col items-center pt-6 text-center">
+      <BrandMark size={36} />
+      <p className="mt-3 text-[14px] font-medium text-[#1f1f1f]">此 Google 帳號無權使用</p>
+      <p className="mt-2 text-[12.5px] leading-relaxed text-[#5f6368]">這個擴充功能只提供恆永顧問系統的成員使用。如需使用，請向公司的系統管理員索取邀請。</p>
     </div>
   );
 }
@@ -444,6 +496,7 @@ function Panel({ t }: { t: EmailThread }) {
             <Button variant="brand" className="w-full" icon={<Check className="size-4" />} onClick={() => primary && link(primary.id, "確認系統建議並歸檔")}>
               確認歸檔
             </Button>
+            <p className="text-center text-[11.5px] text-ink-500">歸檔後，案件成員都看得到這串信的內容</p>
             <div className="flex gap-2">
               <Button className="flex-1" onClick={() => setChanging(true)}>
                 改選

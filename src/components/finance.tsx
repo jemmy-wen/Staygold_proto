@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useStore, type Store } from "../lib/store";
 import type { Change } from "./grid";
 import type { Case, Period } from "../lib/types";
-import { TODAY, money, tax, withTax, type InvoiceStatus, type PayStatus } from "../lib/utils";
+import { TODAY, contractTotal, fmtDate, money, tax, triggerLabel, withTax, type InvoiceStatus, type PayStatus } from "../lib/utils";
 import { Badge, Button, Field, Input, Modal, Segmented } from "./ui";
 
 export function InvoicePill({ v }: { v: InvoiceStatus }) {
@@ -15,7 +15,85 @@ export function PayPill({ v, overdue = 0 }: { v: PayStatus; overdue?: number }) 
   return <Badge tone={overdue > 0 ? "red" : "blue"}>{overdue > 0 ? `逾期 ${overdue} 天` : "待收款"}</Badge>;
 }
 
-export const PERIOD_FIELDS: Record<string, string> = { notifyDate: "通知開票日", amount: "金額（未稅）", invoiceNo: "發票號碼", invoiceDate: "開立日期", dueDate: "約定付款日", paidDate: "收款日期" };
+export const PERIOD_FIELDS: Record<string, string> = { amount: "金額（未稅）", invoiceNo: "發票號碼", invoiceDate: "開立日期", dueDate: "約定付款日", paidDate: "收款日期" };
+
+// 申請開票欄：已申請顯示日期與申請人；未申請且可申請時顯示按鈕
+export function RequestCell({ c, p, onRequest }: { c: Case; p: Period; onRequest?: () => void }) {
+  const s = useStore();
+  if (p.requestedAt) {
+    const by = s.memberOf(p.requestedBy);
+    return (
+      <span className="truncate text-ink-600" title={p.requestNote}>
+        {fmtDate(p.requestedAt).slice(5)}・{by?.nickname ?? by?.name ?? "—"}
+      </span>
+    );
+  }
+  if (p.invoiceNo || !onRequest || !canRequestInvoice(s, c)) return <span className="text-ink-300">—</span>;
+  return (
+    <Button size="sm" variant="outline" onClick={onRequest}>
+      申請開立
+    </Button>
+  );
+}
+
+// 負責人、協作者，或可編輯全部案件的人可以申請開票
+export const canRequestInvoice = (s: Store, c: Case) =>
+  s.perms.casesEdit && (s.perms.casesScope === "all" || c.owner === s.me.id || c.coOwners.includes(s.me.id));
+
+export function RequestInvoiceModal({ c, p, onClose }: { c: Case; p: Period; onClose: () => void }) {
+  const s = useStore();
+  const [amount, setAmount] = useState(String(p.amount));
+  const [note, setNote] = useState("");
+  const n = Number(amount) || 0;
+  const send = () => {
+    const before = { amount: p.amount, pct: p.pct };
+    const total = contractTotal(c);
+    const patch = { requestedAt: TODAY, requestedBy: s.me.id, requestNote: note.trim() || undefined, amount: n, pct: total ? Math.round((n / total) * 100) : p.pct };
+    s.updateCase(c.id, (x) => ({ ...x, periods: x.periods.map((y) => (y.id === p.id ? { ...y, ...patch } : y)) }));
+    s.log({ module: "財務", caseId: c.id, target: `第 ${p.n} 期發票`, action: "申請開立", after: `未稅 ${money(n)}${note.trim() ? `・${note.trim()}` : ""}` });
+    s.toast(`已送出第 ${p.n} 期開票申請，財務會收到通知`, "success", {
+      label: "復原",
+      run: () => {
+        s.updateCase(c.id, (x) => ({ ...x, periods: x.periods.map((y) => (y.id === p.id ? { ...y, ...before, requestedAt: undefined, requestedBy: undefined, requestNote: undefined } : y)) }));
+        s.log({ module: "財務", caseId: c.id, target: `第 ${p.n} 期發票`, action: "取消開立申請" });
+      },
+    });
+    onClose();
+  };
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={`申請開立第 ${p.n} 期發票`}
+      desc={`${c.id}・預計開票時機：${triggerLabel(p)}`}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>
+            取消
+          </Button>
+          <Button variant="dark" disabled={n <= 0} onClick={send}>
+            送出申請
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="本期金額（未稅）" required>
+            <Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} className="tabular-nums" autoFocus />
+          </Field>
+          <Field label="含稅">
+            <Input value={n ? money(withTax(n)) : ""} disabled />
+          </Field>
+        </div>
+        <Field label="給財務的備註">
+          <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="例：客戶要求本月開立、品名需加註廠區" />
+        </Field>
+        <p className="rounded-lg bg-ink-50 px-4 py-3 text-[12.5px] leading-relaxed text-ink-600">送出後通知財務；財務對照合約核對金額後登記開立。送錯可在提示中復原。</p>
+      </div>
+    </Modal>
+  );
+}
 
 // 分期欄位的暫存變更寫回案件；列鍵為「案件編號:期別 id」。填了發票號碼而未填開立日期時，以儲存當日帶入
 export function savePeriodChanges(s: Store, changes: Change[]) {

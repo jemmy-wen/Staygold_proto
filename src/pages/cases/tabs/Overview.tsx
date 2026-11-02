@@ -4,10 +4,11 @@ import { BadgeCheck, FolderOpen, Send, Undo2, X } from "lucide-react";
 import { useStore } from "../../../lib/store";
 import { createRenewal } from "../../../lib/caseOps";
 import { milestoneCandidates } from "../../../lib/rules";
-import type { Case, Milestones, PriceTier } from "../../../lib/types";
-import { TODAY, addDays, cn, daysSince, daysUntil, fmtDate, fmtShort, money, nowStamp } from "../../../lib/utils";
+import type { Case, Milestones, Period, PriceTier } from "../../../lib/types";
+import { TODAY, addDays, cn, daysSince, daysUntil, fmtDate, fmtShort, missingInvoice, money, nowStamp, periodState, triggerLabel } from "../../../lib/utils";
 import { VERIFIERS } from "../../../lib/seed";
 import { Avatar, Badge, Button, Card, KV, OptionList, Popover } from "../../../components/ui";
+import { InvoicePill, RequestCell, RequestInvoiceModal, canRequestInvoice } from "../../../components/finance";
 import { GridCell, useGridDraft, type Change } from "../../../components/grid";
 
 
@@ -24,6 +25,7 @@ export function Overview({ c }: { c: Case; goTab?: (t: string) => void }) {
         <ReviewCard c={c} />
       </div>
       <div className="space-y-5">
+        <InvoiceRequestCard c={c} />
         <InfoCard c={c} />
         <OwnerCard c={c} />
       </div>
@@ -256,6 +258,44 @@ function InfoCard({ c }: { c: Case }) {
   );
 }
 
+
+// 發票申請：負責人沒有財務金額權限時看不到財務分頁，改在概覽申請各期開票（10/29 會議：由負責人手動申請）
+function InvoiceRequestCard({ c }: { c: Case }) {
+  const s = useStore();
+  const [requesting, setRequesting] = useState<Period | null>(null);
+  if (s.perms.financeAmounts || s.me.id !== c.owner || !canRequestInvoice(s, c) || !c.periods.length) return null;
+  const missing = missingInvoice(c, s.statusOf(c));
+  return (
+    <Card title="發票申請" pad={false}>
+      {missing && <p className="border-b border-ink-100 px-5 py-2.5 text-[12.5px] text-ink-700">案件目前為「{s.statusOf(c)}」，還沒有申請過任何一期</p>}
+      <div className="divide-y divide-ink-100">
+        {c.periods.map((p) => {
+          const st = periodState(p, s.settings.payDays);
+          return (
+            <div key={p.id} className="flex items-center gap-3 px-5 py-3 text-[12.5px]">
+              <div className="min-w-0 flex-1">
+                <p className="font-medium text-ink-900">
+                  第 {p.n} 期 <span className="font-normal text-ink-400">{p.pct}%・{money(p.amount)}</span>
+                </p>
+                <p className="truncate text-ink-500">
+                  {st.invoice === "未申請" ? `預計：${triggerLabel(p)}` : st.invoice === "已開立" ? `已開立・${fmtDate(p.invoiceDate)}` : <>已申請・<RequestCell c={c} p={p} /></>}
+                </p>
+              </div>
+              {st.invoice === "未申請" ? (
+                <Button size="sm" variant="outline" onClick={() => setRequesting(p)}>
+                  申請開立
+                </Button>
+              ) : (
+                <InvoicePill v={st.invoice} />
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {requesting && <RequestInvoiceModal c={c} p={requesting} onClose={() => setRequesting(null)} />}
+    </Card>
+  );
+}
 
 function OwnerCard({ c }: { c: Case }) {
   const s = useStore();

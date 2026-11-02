@@ -11,6 +11,7 @@ import type {
   Payable,
   PriceTier,
   Settings,
+  ThreadMessage,
   Travel,
 } from "./types";
 
@@ -86,13 +87,13 @@ export const membersSeed: Member[] = [
     joinedAt: "2026/09/01",
   }),
   m("partner", "吳承翰", "chenghan.wu@staygold-demo.com", "合夥人", "主管", "#7C5CBF", { lastActive: "昨天" }, { reviewPrice: false, members: false, settings: false, financeRecord: false, payables: false }),
-  m("admin1", "蔡宜庭", "yiting.tsai@staygold-demo.com", "行政專員", "專員", "#C2733D"),
+  m("admin1", "蔡宜庭", "yiting.tsai@staygold-demo.com", "行政專員", "專員", "#C2733D", { google: { gmail: "none" } }),
   m("admin2", "許雅雯", "yawen.hsu@staygold-demo.com", "行政專員", "專員", "#D0884E", { lastActive: "2 小時前" }),
-  m("con1", "張書豪", "shuhao.chang@staygold-demo.com", "資深顧問", "顧問", "#3B6FB6"),
+  m("con1", "張書豪", "shuhao.chang@staygold-demo.com", "資深顧問", "顧問", "#3B6FB6", { google: { calendar: "expired" } }),
   m("con2", "李柏翰", "pohan.lee@staygold-demo.com", "顧問", "顧問", "#2F8F9D", { lastActive: "昨天" }),
   m("con3", "王志明", "chihming.wang@staygold-demo.com", "顧問", "顧問", "#5E8C3A"),
   m("fin", "黃韻如", "yunju.huang@staygold-demo.com", "財務專員", "專員", "#B4536A", { lastActive: "3 天前" }, { casesScope: "all", casesCreate: false, casesEdit: false, caseEmail: false, caseDocs: false, caseSchedule: false, customersEdit: false, gmail: false, financeAmounts: true, financeCenter: true, financeRecord: true, payables: true, exportExcel: true, audit: true }),
-  m("ext", "周建宏", "jianhong.chou@gmail.com", "外部顧問", "顧問", "#8A8F3C", { joinedAt: "2026/10/02", lastActive: "昨天" }, { casesCreate: false, casesEdit: false, caseEmail: false, customers: false, customerContact: false, travel: false, gmail: false }),
+  m("ext", "周建宏", "jianhong.chou@gmail.com", "顧問", "外部顧問", "#8A8F3C", { joinedAt: "2026/10/02", lastActive: "昨天", google: { gmail: "none" } }),
   m("yian", "yian.chen", "yian.chen@staygold-demo.com", "顧問", "顧問", "#5E8C3A", {
     avatar: undefined,
     status: "invited",
@@ -337,7 +338,7 @@ export const casesSeed: Case[] = withCollaborators([
     milestones: { visit: "2026-04-20", proposalSent: "2026-05-02", signed: "2026-05-14", courseStart: "2026-06-03", audits: ["2026-09-22"], certified: "2026-10-20" },
     periods: [
       { id: "p1", n: 1, pct: 50, amount: 85000, trigger: "開課", invoiceNo: "QA-26114702", invoiceDate: "2026-06-05", invoiceKind: "電子發票", paidDate: "2026-07-10" },
-      { id: "p2", n: 2, pct: 50, amount: 85000, trigger: "取證" },
+      { id: "p2", n: 2, pct: 50, amount: 85000, trigger: "取證", requestedAt: "2026-10-22", requestedBy: "con2", requestNote: "已取證，客戶要求本月開立" },
     ],
     invoiceItem: "HACCP 食品安全管制系統輔導服務費",
     ownerLog: [{ time: "2026/04/18 10:30", from: "—", to: "con2", by: "admin1" }],
@@ -484,7 +485,7 @@ export const eventsSeed: CalEvent[] = [
   ev("wx1", "con2", "2026-11-05", "維新製衣 SMETA 需求訪談", "拜訪", undefined, "14:00", "15:30", "維新製衣 內湖總部"),
 ];
 
-export const threadsSeed: EmailThread[] = [
+const threadsBase: EmailThread[] = [
   {
     id: "e1", mailbox: "con1", fromName: "陳國輝", fromEmail: "chen.kh@taiya-petro.com.tw",
     subject: "RE: 仁武廠 ISO 14064-1 盤查範疇確認", snippet: "張顧問您好，附件為仁武廠外包運輸商清單，範疇三的部分想再確認是否需要納入…",
@@ -594,7 +595,307 @@ export const threadsSeed: EmailThread[] = [
     date: "2026-10-22", time: "10:30", count: 1,
     state: "linked", caseId: "HECHANG-HACCP-2026-01", linkedBy: "con2", linkedAt: "2026/10/22 11:00",
   },
+  // 以下補齊各案件的往來信件，日期對應各案件的里程碑
+  {
+    id: "s1", mailbox: "con3", fromName: "鄭雅文", fromEmail: "yawen.cheng@sinji-oil.com.tw",
+    subject: "ISCC EU 稽核當日流程與文件清單", snippet: "王顧問好，9/15 稽核當天的流程與要準備的文件我整理成清單，請您幫忙看是否有遺漏…",
+    body: ["王顧問好：", "9/15 Control Union 稽核當天的流程與要準備的文件，我整理成清單如附件。", "質量平衡的月報表目前補到 8 月，再請您幫忙看是否有遺漏的項目。"],
+    signature: ["鄭雅文 品保課長", "新吉成實業股份有限公司"],
+    date: "2025-09-08", time: "14:20", count: 5, hasAttachment: "ISCC稽核文件清單-250908.xlsx",
+    state: "linked", caseId: "SINJI-ISCC-2025-01", linkedBy: "con3", linkedAt: "2025/09/08 15:05",
+  },
+  {
+    id: "s2", mailbox: "con3", fromName: "Control Union Taiwan", fromEmail: "certification@controlunion-demo.com",
+    subject: "新吉成實業 ISCC EU 證書核發通知", snippet: "新吉成實業股份有限公司 ISCC EU 驗證已通過，證書有效期間 2025/11/12 至 2026/11/11…",
+    body: ["您好：", "新吉成實業股份有限公司 ISCC EU 驗證已通過審查，證書有效期間為 2025/11/12 至 2026/11/11。", "電子證書請至 ISCC 官網查詢，紙本證書將另行寄送。"],
+    date: "2025-11-13", time: "10:02", count: 1, hasAttachment: "ISCC-EU-Certificate-SINJI.pdf",
+    state: "linked", caseId: "SINJI-ISCC-2025-01", linkedBy: "con3", linkedAt: "2025/11/13 11:20",
+  },
+  {
+    id: "s3", mailbox: "con3", fromName: "鄭雅文", fromEmail: "yawen.cheng@sinji-oil.com.tw",
+    subject: "RE: ISCC EU 續證輔導企劃書", snippet: "王顧問您好，企劃書內容沒有問題，用印版本下週一寄回…",
+    body: ["王顧問您好：", "續證輔導企劃書內容我們看過了，堂數與今年相同沒有問題。", "用印版本下週一寄回，再麻煩您安排第一堂課的時間。"],
+    signature: ["鄭雅文 品保課長", "新吉成實業股份有限公司"],
+    date: "2026-06-26", time: "17:45", count: 3,
+    state: "linked", caseId: "SINJI-ISCC-2026-01", linkedBy: "con3", linkedAt: "2026/06/27 09:10",
+  },
+  {
+    id: "s4", mailbox: "con3", fromName: "鄭雅文", fromEmail: "yawen.cheng@sinji-oil.com.tw",
+    subject: "第 3 堂課後作業：質量平衡表", snippet: "王顧問，第 3 堂課的作業已完成，7、8 月的質量平衡表如附件…",
+    body: ["王顧問：", "第 3 堂課的作業已完成，7、8 月的質量平衡表如附件。", "其中 8 月有一批原料的永續聲明文件還在等供應商補，先用黃色標註。"],
+    signature: ["鄭雅文 品保課長", "新吉成實業股份有限公司"],
+    date: "2026-09-16", time: "10:35", count: 4, hasAttachment: "質量平衡表-2026-07-08.xlsx",
+    state: "linked", caseId: "SINJI-ISCC-2026-01", linkedBy: "con3", linkedAt: "2026/09/16 11:00",
+  },
+  {
+    id: "t1", mailbox: "con1", fromName: "陳國輝", fromEmail: "chen.kh@taiya-petro.com.tw",
+    subject: "10/2 拜訪會議紀錄與盤查需求", snippet: "張顧問您好，謝謝您 10/2 來廠說明，會議紀錄與我們整理的盤查需求如附件…",
+    body: ["張顧問您好：", "謝謝您 10/2 來仁武廠說明，會議紀錄與我們整理的盤查需求如附件。", "總公司希望仁武、林園兩廠分開報價，但查證時程盡量一起安排。"],
+    signature: ["陳國輝 環安課長", "台亞塑化工業股份有限公司 仁武廠", "07-3712-905"],
+    date: "2026-10-03", time: "11:15", count: 2, hasAttachment: "1002拜訪會議紀錄.docx",
+    state: "linked", caseId: "TAIYA-仁武廠-ISO14064-2026-01", linkedBy: "con1", linkedAt: "2026/10/03 13:40",
+  },
+  {
+    id: "t2", mailbox: "con1", fromName: "林志遠", fromEmail: "lin.cy@taiya-petro.com.tw",
+    subject: "林園廠溫室氣體盤查窗口", snippet: "張顧問您好，我是林園廠製程課的林志遠，陳課長請我與您聯繫…",
+    body: ["張顧問您好：", "我是林園廠製程課的林志遠，陳課長請我與您聯繫，林園廠的盤查之後由我對口。", "廠內排放源目前有鍋爐 2 座、加熱爐 3 座，詳細清單整理好再寄給您。"],
+    signature: ["林志遠 製程課工程師", "台亞塑化工業股份有限公司 林園廠"],
+    date: "2026-10-05", time: "09:30", count: 1,
+    state: "linked", caseId: "TAIYA-林園廠-ISO14064-2026-01", linkedBy: "con1", linkedAt: "2026/10/05 10:12",
+  },
+  {
+    id: "j1", mailbox: "con2", fromName: "許志明", fromEmail: "jm.hsu@jinhe-paper.com.tw",
+    subject: "FSC COC 輔導需求與廠區資料", snippet: "李顧問您好，附上工廠平面圖與目前的原料來源清單，供您評估輔導範圍…",
+    body: ["李顧問您好：", "附上工廠平面圖與目前的原料來源清單，供您評估 FSC COC 的輔導範圍。", "我們主要客戶是日系品牌，希望明年第二季前取得證書。"],
+    signature: ["許志明 廠長", "金禾紙品有限公司"],
+    date: "2026-08-29", time: "15:50", count: 3, hasAttachment: "金禾-廠區平面圖與原料清單.pdf",
+    state: "linked", caseId: "JINHE-FSC-2026-01", linkedBy: "con2", linkedAt: "2026/08/29 16:30",
+  },
+  {
+    id: "c1", mailbox: "con2", fromName: "林淑芬", fromEmail: "sf.lin@chengying-print.com",
+    subject: "FSC 驗證輔導詢價（承穎印刷）", snippet: "李顧問您好，謝謝您說明輔導流程，費用的部分想請您到廠看過後再報價…",
+    body: ["李顧問您好：", "謝謝您說明輔導流程。費用的部分想請您到廠看過產線後再報價。", "9/10 下午方便的話，歡迎到廠參觀我們的印刷產線。"],
+    signature: ["林淑芬 管理部經理", "承穎彩色印刷股份有限公司"],
+    date: "2026-09-02", time: "10:08", count: 3,
+    state: "linked", caseId: "CHENGYING-FSC-2026-01", linkedBy: "con2", linkedAt: "2026/09/02 11:00",
+  },
+  {
+    id: "c2", mailbox: "admin2", fromName: "林淑芬", fromEmail: "sf.lin@chengying-print.com",
+    subject: "RE: 企劃書寄送時間", snippet: "許小姐您好，請問企劃書預計何時寄出？我們董事會 11/5 要審…",
+    body: ["許小姐您好：", "請問 FSC 輔導企劃書預計何時寄出？我們董事會 11/5 要審預算，希望能在這之前收到。", "謝謝。"],
+    signature: ["林淑芬 管理部經理", "承穎彩色印刷股份有限公司"],
+    date: "2026-10-28", time: "14:12", count: 2, unread: true,
+    state: "suggested", suggestedCaseIds: ["CHENGYING-FSC-2026-01"],
+    reasons: ["寄件網域 chengying-print.com 對應客戶「承穎印刷」", "主旨含「企劃書」", "信件時間落在案件時程內（已報價待回簽）"],
+  },
+  {
+    id: "m1", mailbox: "admin2", fromName: "黃建銘", fromEmail: "cm.huang@senmao-wood.com",
+    subject: "詢問 FSC 森林管理與 COC 驗證", snippet: "您好，我們是木材加工廠，想同時了解 FM 與 COC 驗證的差別與輔導方式…",
+    body: ["您好：", "我們是木材加工廠，部分原木來自自有林地，想了解 FSC FM 與 COC 驗證的差別與輔導方式。", "總經理希望先安排一次電話說明。"],
+    signature: ["黃建銘 總經理特助", "森茂木業股份有限公司"],
+    date: "2026-10-23", time: "16:40", count: 1,
+    state: "linked", caseId: "SENMAO-FSC-2026-01", linkedBy: "admin2", linkedAt: "2026/10/24 09:15",
+  },
+  {
+    id: "l1", mailbox: "con3", fromName: "吳宗翰", fromEmail: "th.wu@lvneng-bio.com.tw",
+    subject: "RE: ISCC PLUS 輔導企劃書", snippet: "王顧問您好，企劃書第 4 頁的課程規劃想把供應鏈追溯提前…",
+    body: ["王顧問您好：", "企劃書第 4 頁的課程規劃，想請您把供應鏈追溯的課程提前到第 2 堂。", "其餘內容沒有問題。"],
+    signature: ["吳宗翰 研發經理", "綠能生質科技股份有限公司"],
+    date: "2026-09-08", time: "11:25", count: 3,
+    state: "linked", caseId: "LVNENG-ISCCPLUS-2026-01", linkedBy: "con3", linkedAt: "2026/09/08 13:00",
+  },
+  {
+    id: "l2", mailbox: "con3", fromName: "吳宗翰", fromEmail: "th.wu@lvneng-bio.com.tw",
+    subject: "ISCC PLUS 輔導合約用印回傳", snippet: "王顧問您好，用印後的合約如附件，正本已掛號寄出…",
+    body: ["王顧問您好：", "用印後的合約如附件，正本已掛號寄出。", "第一堂課的時間再請您協調。"],
+    signature: ["吳宗翰 研發經理", "綠能生質科技股份有限公司"],
+    date: "2026-10-15", time: "16:05", count: 1, hasAttachment: "ISCC PLUS 輔導合約_用印版.pdf",
+    state: "linked", caseId: "LVNENG-ISCCPLUS-2026-01", linkedBy: "con3", linkedAt: "2026/10/15 16:30",
+  },
+  {
+    id: "h1", mailbox: "con1", fromName: "TÜV NORD Taiwan", fromEmail: "audit@tuvnord-demo.com",
+    subject: "宏碩精密 ISO 9001 驗證稽核排程確認", snippet: "張顧問您好，宏碩精密 ISO 9001 驗證稽核排定於 10/14（三）…",
+    body: ["張顧問您好：", "宏碩精密工業股份有限公司 ISO 9001 驗證稽核排定於 10/14（三）09:00–17:00，稽核員 2 名。", "稽核計畫如附件，請協助轉知受稽單位。"],
+    date: "2026-09-25", time: "13:10", count: 2, hasAttachment: "稽核計畫-宏碩精密-ISO9001.pdf",
+    state: "linked", caseId: "HONGSHUO-ISO9001-2026-01", linkedBy: "con1", linkedAt: "2026/09/25 14:00",
+  },
+  {
+    id: "h2", mailbox: "con1", fromName: "張家豪", fromEmail: "chiahao.chang@hongshuo.com.tw",
+    subject: "內部稽核報告與管理審查紀錄", snippet: "張顧問，內部稽核報告與 9/26 管理審查會議紀錄如附件，請協助檢查…",
+    body: ["張顧問：", "內部稽核報告與 9/26 管理審查會議紀錄如附件，請協助檢查是否符合驗證稽核要求。"],
+    signature: ["張家豪 品保經理", "宏碩精密工業股份有限公司"],
+    date: "2026-09-30", time: "18:20", count: 2, hasAttachment: "內稽報告與管審紀錄-260930.zip",
+    state: "linked", caseId: "HONGSHUO-ISO9001-2026-01", linkedBy: "con1", linkedAt: "2026/10/01 09:00",
+  },
+  {
+    id: "o1", mailbox: "con1", fromName: "張家豪", fromEmail: "chiahao.chang@hongshuo.com.tw",
+    subject: "RE: ISO 45001 追加輔導報價", snippet: "張顧問，報價單收到了，目前在跑內部簽核，預計下週回覆…",
+    body: ["張顧問：", "ISO 45001 的報價單收到了，目前在跑內部簽核，預計下週回覆。", "如果能和 ISO 9001 的追查稽核同一週，對我們比較方便。"],
+    signature: ["張家豪 品保經理", "宏碩精密工業股份有限公司"],
+    date: "2026-10-27", time: "15:02", count: 2,
+    state: "linked", caseId: "HONGSHUO-ISO45001-2026-01", linkedBy: "con1", linkedAt: "2026/10/27 15:30",
+  },
+  {
+    id: "k1", mailbox: "con2", fromName: "蔡美玲", fromEmail: "ml.tsai@hechang-food.com.tw",
+    subject: "HACCP 稽核缺失改善回覆", snippet: "李顧問好，SGS 開的 3 項缺失改善照片與紀錄已整理好，請您先過目…",
+    body: ["李顧問好：", "SGS 9/22 稽核開的 3 項缺失，改善照片與紀錄已整理好，請您先過目再回覆驗證單位。"],
+    signature: ["蔡美玲 品管主任", "和昌食品股份有限公司"],
+    date: "2026-09-29", time: "11:45", count: 3, hasAttachment: "HACCP缺失改善-照片紀錄.pdf",
+    state: "linked", caseId: "HECHANG-HACCP-2026-01", linkedBy: "con2", linkedAt: "2026/09/29 13:20",
+  },
+  {
+    id: "k2", mailbox: "con2", fromName: "SGS Taiwan", fromEmail: "certification@sgs-demo.com",
+    subject: "和昌食品 HACCP 驗證通過通知", snippet: "和昌食品股份有限公司 HACCP 驗證已通過，證書將於兩週內寄出…",
+    body: ["您好：", "和昌食品股份有限公司 HACCP 驗證已通過審查，證書將於兩週內寄出。", "請確認證書寄送地址。"],
+    date: "2026-10-20", time: "09:40", count: 1,
+    state: "linked", caseId: "HECHANG-HACCP-2026-01", linkedBy: "con2", linkedAt: "2026/10/20 10:05",
+  },
+  {
+    id: "g1", mailbox: "con3", fromName: "李欣怡", fromEmail: "hy.lee@guangcai-tex.com",
+    subject: "GRS 化學品清單與廢水檢測報告", snippet: "王顧問好，第一堂課提到的化學品清單與最近一次廢水檢測報告如附件…",
+    body: ["王顧問好：", "第一堂課提到的化學品清單與最近一次廢水檢測報告如附件。", "染整廠的部分還在跟外包商要資料。"],
+    signature: ["李欣怡 永續專員", "光彩紡織股份有限公司"],
+    date: "2026-10-14", time: "17:05", count: 2, hasAttachment: "化學品清單與廢水檢測.zip",
+    state: "linked", caseId: "GUANGCAI-GRS-2026-01", linkedBy: "con3", linkedAt: "2026/10/15 09:00",
+  },
+  {
+    id: "i1", mailbox: "admin2", fromName: "周育成", fromEmail: "yc.chou@jiahe-pack.com",
+    subject: "產品碳足跡輔導需求（三項主力產品）", snippet: "您好，品牌客戶要求明年提供三項主力產品的碳足跡，想安排顧問拜訪…",
+    body: ["您好：", "品牌客戶要求明年提供三項主力產品的碳足跡（ISO 14067），想安排顧問來廠拜訪。", "10/6 上午或 10/7 下午都可以。"],
+    signature: ["周育成 業務副理", "佳和包裝材料股份有限公司"],
+    date: "2026-10-01", time: "10:20", count: 1,
+    state: "linked", caseId: "JIAHE-ISO14067-2026-01", linkedBy: "admin2", linkedAt: "2026/10/01 11:05",
+  },
+  {
+    id: "p1", mailbox: "con1", fromName: "王俊傑", fromEmail: "cj.wang@lisheng-chem.com.tw",
+    subject: "ISO 14001 環境考量面鑑別表", snippet: "張顧問您好，大社廠環境考量面鑑別表初稿如附件，顯著考量面共 12 項…",
+    body: ["張顧問您好：", "大社廠環境考量面鑑別表初稿如附件，目前判定的顯著考量面共 12 項。", "下次上課再請您協助確認評分標準。"],
+    signature: ["王俊傑 環安副理", "立昇化學工業股份有限公司"],
+    date: "2025-08-12", time: "14:30", count: 4, hasAttachment: "環境考量面鑑別表-大社廠-v1.xlsx",
+    state: "linked", caseId: "LISHENG-大社廠-ISO14001-2025-01", linkedBy: "con1", linkedAt: "2025/08/12 15:00",
+  },
+  {
+    id: "p2", mailbox: "con1", fromName: "DNV Taiwan", fromEmail: "certification@dnv-demo.com",
+    subject: "立昇化學大社廠 ISO 14001 證書", snippet: "立昇化學工業股份有限公司大社廠 ISO 14001 證書已核發，有效期限至 2027/03/20…",
+    body: ["您好：", "立昇化學工業股份有限公司大社廠 ISO 14001 證書已核發，有效期限至 2027/03/20。", "電子證書如附件。"],
+    date: "2025-12-11", time: "10:15", count: 1, hasAttachment: "ISO14001-Certificate-LISHENG.pdf",
+    state: "linked", caseId: "LISHENG-大社廠-ISO14001-2025-01", linkedBy: "con1", linkedAt: "2025/12/11 11:00",
+  },
+  {
+    id: "d1", mailbox: "con2", fromName: "何佩珊", fromEmail: "ps.ho@dayu-beauty.com",
+    subject: "GMP 稽核前文件總檢核", snippet: "李顧問好，稽核前的文件總檢核清單已全部打勾，剩下批次紀錄抽樣待確認…",
+    body: ["李顧問好：", "ISO 22716 稽核前的文件總檢核清單已全部打勾，剩下批次紀錄的抽樣方式待您確認。"],
+    signature: ["何佩珊 品保經理", "大宇美妝生技股份有限公司"],
+    date: "2025-10-20", time: "16:10", count: 6, hasAttachment: "稽核前文件檢核表.xlsx",
+    state: "linked", caseId: "DAYU-ISO22716-2025-01", linkedBy: "con2", linkedAt: "2025/10/20 16:45",
+  },
+  {
+    id: "d2", mailbox: "con2", fromName: "何佩珊", fromEmail: "ps.ho@dayu-beauty.com",
+    subject: "ISO 22716 續證時程與報價", snippet: "李顧問好，我們的 ISO 22716 證書 11/25 到期，想了解續證的時程與報價…",
+    body: ["李顧問好：", "我們的 ISO 22716 證書 11/25 到期，想了解續證的時程與報價。", "今年新增了一條乳液產線，不知道會不會影響稽核範圍？"],
+    signature: ["何佩珊 品保經理", "大宇美妝生技股份有限公司"],
+    date: "2026-10-27", time: "09:18", count: 1, unread: true,
+    state: "suggested", suggestedCaseIds: ["DAYU-ISO22716-2025-01"],
+    reasons: ["寄件網域 dayu-beauty.com 對應客戶「大宇美妝」", "主旨含「ISO 22716」「續證」", "證書即將到期（27 天）"],
+  },
+  {
+    id: "w1", mailbox: "admin2", fromName: "郭思妤", fromEmail: "sy.kuo@weixin-apparel.com",
+    subject: "SMETA 稽核輔導需求（品牌客戶要求）", snippet: "您好，歐洲品牌客戶要求明年第一季前完成 SMETA 稽核，想了解輔導方式…",
+    body: ["您好：", "歐洲品牌客戶要求我們明年第一季前完成 SMETA 4-Pillar 稽核，想了解輔導方式與時程。", "品牌商的要求說明如附件。"],
+    signature: ["郭思妤 CSR 專員", "維新製衣股份有限公司"],
+    date: "2026-10-24", time: "11:30", count: 1, hasAttachment: "品牌商 SMETA 要求說明.pdf",
+    state: "linked", caseId: "WEIXIN-SMETA-2026-01", linkedBy: "admin2", linkedAt: "2026/10/24 13:10",
+  },
 ];
+
+// 恆永同仁寄出的信
+const STAFF_MAIL: Record<string, [string, string]> = {
+  con1: ["張書豪", "shuhao.chang@staygold-demo.com"],
+  con2: ["李柏翰", "pohan.lee@staygold-demo.com"],
+  con3: ["王志明", "chihming.wang@staygold-demo.com"],
+  admin2: ["許雅雯", "yawen.hsu@staygold-demo.com"],
+};
+const sent = (id: string, to: string, date: string, time: string, body: string[], hasAttachment?: string): ThreadMessage => ({
+  fromName: STAFF_MAIL[id][0],
+  fromEmail: STAFF_MAIL[id][1],
+  to,
+  date,
+  time,
+  body,
+  hasAttachment,
+});
+
+// 各串信較早的往來，由舊到新；封數（count）＝這裡的封數＋最新一封
+const THREAD_HISTORY: Record<string, ThreadMessage[]> = {
+  e1: [
+    sent("con1", "陳國輝", "2026-10-20", "10:15", ["陳課長您好：", "仁武廠盤查邊界的初步建議：範疇一、二全部納入；範疇三想先了解廠內有哪些委外活動，再判斷是否具重大性。", "方便的話請協助列出委外的運輸、廢棄物處理與員工通勤狀況。"]),
+    { fromName: "陳國輝", fromEmail: "chen.kh@taiya-petro.com.tw", to: "張書豪", date: "2026-10-22", time: "16:30", body: ["張顧問您好：", "廠內的原料與成品運輸都委外，廢棄物由 2 家合格清運商處理，員工通勤沒有統計資料。", "運輸的部分需要提供哪些資料？"] },
+    sent("con1", "陳國輝", "2026-10-27", "09:05", ["陳課長您好：", "運輸的部分請先提供外包運輸商清單（廠商名稱、運送品項、年度趟次），我會依重大性評估是否納入本次邊界。", "通勤沒有統計的話，這次可以先不納入，在報告中說明即可。"]),
+  ],
+  e2: [
+    sent("con1", "張家豪", "2026-10-26", "11:20", ["張經理您好：", "TÜV NORD 的稽核報告收到了，10/14 開出 2 項次要缺失：文件管制紀錄不完整、校正設備標示未更新。", "驗證單位要求 11/10 前回覆改善計畫，請先擬初稿，我再協助檢視。"]),
+  ],
+  e5: [
+    sent("con1", "周育成", "2026-10-08", "13:40", ["周副理您好：", "謝謝 10/6 的接待。要開始估算碳足跡，需要三項主力產品的 BOM 表與主要原料供應商清單，再麻煩提供。"]),
+    { fromName: "周育成", fromEmail: "yc.chou@jiahe-pack.com", to: "張書豪", date: "2026-10-12", time: "17:10", body: ["張顧問：", "BOM 表整理中，這週會給您。", "想先問品牌客戶的要求是提供到出廠為止，這樣盤查邊界是否從搖籃到大門就夠了？"] },
+  ],
+  e6: [
+    sent("con1", "張家豪", "2026-07-29", "17:30", ["張經理您好：", "今天第五堂課辛苦了。簽到表與上課教材再麻煩上傳到共用資料夾存檔，驗證稽核時會用到。"]),
+  ],
+  z1: [
+    sent("con3", "鄭雅文", "2026-10-26", "14:00", ["鄭課長您好：", "第八堂課暫定 11/11（三）下午，內容是稽核前的文件總檢視，請品保與採購同仁一起參加。"]),
+    { fromName: "鄭雅文", fromEmail: "yawen.cheng@sinji-oil.com.tw", to: "王志明", date: "2026-10-27", time: "09:20", body: ["王顧問好：", "收到，我跟採購確認時間後再回覆您。"] },
+  ],
+  z3: [
+    sent("con3", "李欣怡", "2026-10-19", "15:20", ["李小姐您好：", "第一批 TC 申請需要這批貨的出貨單與發票，再請上傳到 Drive 的客戶文件上傳區，我確認後送件。"]),
+  ],
+  r1: [
+    sent("con2", "許志明", "2026-10-19", "10:00", ["許廠長您好：", "FSC 輔導企劃書已於 9/29 寄出，想請問目前內部評估的進度，有需要調整的地方都可以討論。"]),
+  ],
+  s1: [
+    sent("con3", "鄭雅文", "2025-08-25", "11:00", ["鄭課長您好：", "Control Union 回覆稽核日期確定為 9/15（一）。接下來兩週我們會開始稽核前的準備。"]),
+    { fromName: "鄭雅文", fromEmail: "yawen.cheng@sinji-oil.com.tw", to: "王志明", date: "2025-08-27", time: "10:40", body: ["王顧問好：", "收到。稽核當天需要哪些部門的人在場？文件要先準備哪些？"] },
+    sent("con3", "鄭雅文", "2025-09-01", "09:30", ["鄭課長您好：", "當天請品保、採購、倉管的主管在場。文件的部分，質量平衡月報表、原料永續聲明、供應商清單是重點，請先備齊。"]),
+    { fromName: "鄭雅文", fromEmail: "yawen.cheng@sinji-oil.com.tw", to: "王志明", date: "2025-09-04", time: "16:15", body: ["王顧問好：", "質量平衡月報表目前補到 7 月，8 月下週可以完成。", "永續聲明有 2 家供應商還沒給，我再催。"] },
+  ],
+  s3: [
+    sent("con3", "鄭雅文", "2026-06-24", "15:30", ["鄭課長您好：", "ISCC EU 續證輔導企劃書如附件，堂數 6 堂比照去年，並加上陪同稽核 1 次。"], "ISCC-EU-續證企劃書-2026.pdf"),
+    sent("con3", "鄭雅文", "2026-06-25", "09:10", ["鄭課長您好：", "補充說明，報價頁已更新為 2026 年度費率，請以昨天附件的第 6 頁為準。"]),
+  ],
+  s4: [
+    sent("con3", "鄭雅文", "2026-09-09", "17:20", ["鄭課長您好：", "第 3 堂課的作業：請依上課範本填寫 7、8 月的質量平衡表，下週上課前寄給我。"]),
+    { fromName: "鄭雅文", fromEmail: "yawen.cheng@sinji-oil.com.tw", to: "王志明", date: "2026-09-11", time: "11:00", body: ["王顧問好：", "7 月沒問題。8 月有一批原料的永續聲明還沒收到，這批要怎麼填？"] },
+    sent("con3", "鄭雅文", "2026-09-12", "09:00", ["鄭課長您好：", "這批先填入並用黃色標註，等供應商補文件後再確認。若稽核前仍未補齊，就不能算入永續料。"]),
+  ],
+  t1: [
+    sent("con1", "陳國輝", "2026-09-30", "10:30", ["陳課長您好：", "10/2（五）上午 10 點到仁武廠拜訪，會說明 ISO 14064-1 的盤查流程與時程，約需 1.5 小時。", "如果林園廠的同仁也能參加，可以一起討論。"]),
+  ],
+  j1: [
+    sent("con2", "許志明", "2026-08-25", "14:10", ["許廠長您好：", "8/28（五）下午 2 點到廠拜訪，會說明 FSC COC 的驗證流程。"]),
+    sent("con2", "許志明", "2026-08-28", "17:40", ["許廠長您好：", "謝謝今天的接待。要評估輔導範圍，再請提供廠區平面圖與目前的原料來源清單。"]),
+  ],
+  c1: [
+    { fromName: "林淑芬", fromEmail: "sf.lin@chengying-print.com", to: "李柏翰", date: "2026-08-26", time: "11:30", body: ["李顧問您好：", "敝司因出版社客戶要求，需要在明年取得 FSC COC 證書，想詢問輔導流程與費用。"] },
+    sent("con2", "林淑芬", "2026-08-28", "09:45", ["林經理您好：", "輔導流程大致是：現況訪視、建立程序文件、教育訓練、內部稽核、驗證稽核，約需 4 到 6 個月。", "費用會依產線與紙張來源的複雜度而定，建議先到廠了解。"]),
+  ],
+  c2: [
+    sent("admin2", "林淑芬", "2026-10-20", "10:50", ["林經理您好：", "FSC 輔導企劃書目前在內部審核，核可後會立即寄給您，有進度再通知。"]),
+  ],
+  l1: [
+    sent("con3", "吳宗翰", "2026-09-05", "16:00", ["吳經理您好：", "ISCC PLUS 輔導企劃書如附件，共 5 堂課，請參考。"], "ISCC-PLUS-輔導企劃書-綠能生質.pdf"),
+    { fromName: "吳宗翰", fromEmail: "th.wu@lvneng-bio.com.tw", to: "王志明", date: "2026-09-07", time: "09:15", body: ["王顧問您好：", "收到，我今天和研發、採購一起看過後回覆您。"] },
+  ],
+  h1: [
+    sent("con1", "TÜV NORD Taiwan", "2026-09-22", "10:20", ["您好：", "宏碩精密的內部稽核與管理審查將於 9 月底完成，驗證稽核希望安排在 10 月中，10/14 是否可行？"]),
+  ],
+  h2: [
+    sent("con1", "張家豪", "2026-09-28", "09:30", ["張經理您好：", "驗證稽核排定 10/14。內部稽核報告與管理審查紀錄完成後請先寄給我，確認符合稽核要求。"]),
+  ],
+  o1: [
+    sent("con1", "張家豪", "2026-10-26", "17:00", ["張經理您好：", "ISO 45001 追加輔導的企劃書與報價單如附件，共 5 堂課，再請參考。"], "ISO45001-企劃書與報價-宏碩精密.pdf"),
+  ],
+  k1: [
+    sent("con2", "蔡美玲", "2026-09-23", "10:00", ["蔡主任您好：", "SGS 昨天開了 3 項缺失：原料暫存區溫度紀錄缺漏、清潔紀錄未簽核、部分員工訓練紀錄不全。", "請在 9/30 前完成改善並拍照留存。"]),
+    { fromName: "蔡美玲", fromEmail: "ml.tsai@hechang-food.com.tw", to: "李柏翰", date: "2026-09-25", time: "14:30", body: ["李顧問好：", "前兩項已改善。訓練紀錄的部分今天補訓，下週一可以給您完整資料。"] },
+  ],
+  g1: [
+    sent("con3", "李欣怡", "2026-10-07", "09:40", ["李小姐您好：", "昨天第一堂課提到的資料，請提供化學品清單與最近一次的廢水檢測報告，外包染整廠的部分也請一併詢問。"]),
+  ],
+  p1: [
+    sent("con1", "王俊傑", "2025-07-22", "16:20", ["王副理您好：", "這次上課的作業是鑑別大社廠的環境考量面，範本如附件，請各課室先填。"], "環境考量面鑑別表-範本.xlsx"),
+    { fromName: "王俊傑", fromEmail: "cj.wang@lisheng-chem.com.tw", to: "張書豪", date: "2025-07-28", time: "10:05", body: ["張顧問您好：", "各課室的填法不太一致，評分標準有建議的寫法嗎？"] },
+    sent("con1", "王俊傑", "2025-08-01", "09:15", ["王副理您好：", "建議用發生頻率、影響程度、法規要求三個面向評分，各 1 到 5 分。先試算一輪，下次上課再一起校正。"]),
+  ],
+  d1: [
+    sent("con2", "何佩珊", "2025-09-30", "11:00", ["何經理您好：", "ISO 22716 驗證稽核排定 10/30，這個月開始做文件總檢核，檢核清單如附件。"], "稽核前文件檢核表-範本.xlsx"),
+    { fromName: "何佩珊", fromEmail: "ps.ho@dayu-beauty.com", to: "李柏翰", date: "2025-10-03", time: "15:25", body: ["李顧問好：", "清單收到，我分給各單位，預計兩週內填完。"] },
+    sent("con2", "何佩珊", "2025-10-08", "10:10", ["何經理您好：", "上次課程提到的新進人員 GMP 教育訓練紀錄，也請一併放入檢核範圍。"]),
+    { fromName: "何佩珊", fromEmail: "ps.ho@dayu-beauty.com", to: "李柏翰", date: "2025-10-13", time: "17:40", body: ["李顧問好：", "新進人員的訓練紀錄已補齊。批次紀錄要準備多少才夠？"] },
+    sent("con2", "何佩珊", "2025-10-16", "09:30", ["何經理您好：", "批次紀錄先準備近 6 個月，抽樣方式我看過清單後再跟您確認。"]),
+  ],
+};
+
+export const threadsSeed: EmailThread[] = threadsBase.map((t) => ({ ...t, earlier: THREAD_HISTORY[t.id] }));
 
 export const travelSeed: Travel[] = [
   { id: "t1", date: "2026-10-28", memberId: "con3", category: "交通費", detail: "高鐵 台北－台南 來回", amount: 2980, caseId: "SINJI-ISCC-2026-01", link: "系統建議已確認", createdAt: "2026/10/28" },
