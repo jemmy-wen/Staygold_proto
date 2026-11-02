@@ -15,7 +15,7 @@ export function InviteAccept() {
     <AuthFrame
       aside={
         <div className="max-w-md">
-          <p className="flex items-center gap-2 text-[12px] text-ink-400">
+          <p className="flex items-center gap-2 text-[12px] text-white/70">
             <Mail className="size-4" />
             你收到的邀請信
           </p>

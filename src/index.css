@@ -45,6 +45,27 @@ td {
   animation: rise 0.25s ease-out both;
 }
 
+/* 登入頁左側形象區塊：主色系的柔焦漸層，左下保持深色讓白字清楚 */
+.auth-gradient {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background: #32716a;
+}
+.auth-gradient::before {
+  content: "";
+  position: absolute;
+  inset: -15%;
+  z-index: -1;
+  background-color: #32716a;
+  background-image:
+    radial-gradient(34% 30% at 86% 16%, #d5eae7 0%, rgba(213, 234, 231, 0) 100%),
+    radial-gradient(40% 44% at 92% 50%, #7db9b2 0%, rgba(125, 185, 178, 0) 100%),
+    radial-gradient(46% 38% at 38% 14%, #4f9a92 0%, rgba(79, 154, 146, 0) 100%),
+    radial-gradient(66% 58% at 22% 70%, #15302d 0%, rgba(21, 48, 45, 0) 100%);
+  filter: blur(48px);
+}
+
 /* 數字欄位不顯示瀏覽器的上下箭頭，避免儲存格內容被擠壓 */
 input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button {

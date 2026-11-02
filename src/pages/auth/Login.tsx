@@ -23,12 +23,11 @@ const SERVICES = ["ISO", "FSC", "ISCC", "GRS", "SMETA", "EcoVadis", "HACCP", "FS
 export function AuthFrame({ children, aside }: { children: React.ReactNode; aside?: React.ReactNode }) {
   return (
     <div className="flex h-screen min-w-[1280px] bg-ink-50 p-2">
-      <div className="flex w-[44%] flex-col justify-between rounded-2xl bg-ink-900 p-12 text-white">
+      <div className="auth-gradient flex w-[44%] flex-col justify-between rounded-2xl p-12 text-white">
         <BrandLockup tone="dark" />
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease, delay: 0.1 }}>
           {aside ?? <BrandStatement />}
         </motion.div>
-        <p className="text-[12px] text-ink-500">© 2026 恆永企業有限公司 Stay Gold Co., Ltd.</p>
       </div>
       <div className="flex flex-1 items-center justify-center">{children}</div>
     </div>
@@ -38,13 +37,13 @@ export function AuthFrame({ children, aside }: { children: React.ReactNode; asid
 function BrandStatement() {
   return (
     <div className="max-w-md">
-      <h1 className="text-[34px] font-semibold leading-[1.25] tracking-tight">
+      <h1 className="text-[36px] font-semibold leading-[1.3] tracking-tight">
         讓永續成為
         <br />
         企業最閃亮的招牌
       </h1>
-      <p className="mt-5 text-[14px] leading-relaxed text-ink-300">做對的事，也能帶來商業價值。從國際驗證、碳管理到品牌策略，陪企業把永續規範轉化為競爭力。</p>
-      <div className="mt-8 flex flex-wrap gap-x-4 gap-y-2 text-[12.5px] text-ink-400">
+      <p className="mt-4 text-[14px] leading-[1.7] text-white/80">做對的事，也能帶來商業價值。從國際驗證、碳管理到品牌策略，陪企業把永續規範轉化為競爭力。</p>
+      <div className="mt-6 flex flex-wrap gap-x-3.5 gap-y-1.5 text-[12.5px] text-white/70">
         {SERVICES.map((s) => (
           <span key={s}>{s}</span>
         ))}

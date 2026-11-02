@@ -22,12 +22,12 @@ export function Setup() {
     <AuthFrame
       aside={
         <div className="max-w-md">
-          <p className="flex items-center gap-2 text-[12px] text-ink-400">
+          <p className="flex items-center gap-2 text-[12px] text-white/70">
             <Rocket className="size-4" />
             首次啟動
           </p>
           <h1 className="mt-4 text-[28px] font-semibold leading-[1.3] tracking-tight">歡迎使用恆永顧問內部系統</h1>
-          <p className="mt-4 text-[14px] leading-relaxed text-ink-300">這個帳號在系統部署時被指定為擁有者。確認公司名稱與 Google 串接狀態後，就可以開始邀請同仁加入。</p>
+          <p className="mt-4 text-[14px] leading-[1.7] text-white/80">這個帳號在系統部署時被指定為擁有者。確認公司名稱與 Google 串接狀態後，就可以開始邀請同仁加入。</p>
         </div>
       }
     >
