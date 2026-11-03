@@ -4,7 +4,7 @@ import { ArrowRight, CircleCheck, Plus, TrendingUp } from "lucide-react";
 import { useStore } from "../lib/store";
 import type { Case, CaseStatus } from "../lib/types";
 import { ACTIVE_STATUSES, AGING, STATUSES, TODAY, agingBucket, cn, contractTotal, daysUntil, fmtDate, inRange, lineOf, money, openParam, periodState, weekRange, weekday, withTax } from "../lib/utils";
-import { Avatar, Badge, Button, Card, Empty, Segmented, StatGroup, ease } from "../components/ui";
+import { Button, Card, Empty, Segmented, StatGroup, ease } from "../components/ui";
 import { NotifBell, openNotif } from "../components/layout";
 import { NotifIcon, NotifKind } from "./Notifications";
 import { NewCaseModal } from "./cases/NewCaseModal";
@@ -24,7 +24,7 @@ const METRICS: { name: string; date: (c: Case) => string | undefined; next: stri
 ];
 
 // 總覽：先看數字（手上幾件、這段期間做了多少），再看待辦、證書到期與帳務
-// 全部案件範圍：進行中＋活動量；僅參與範圍：只顯示我的進行中案件。證書到期給有建立案件權限的人（處理動作是建立續證案件）
+// 全部案件範圍看全公司，僅參與範圍看自己的案件；證書到期給有建立案件權限的人（處理動作是建立續證案件）
 export function Dashboard() {
   const s = useStore();
   const [creating, setCreating] = useState(openParam("newCase"));
@@ -36,8 +36,9 @@ export function Dashboard() {
   const r = rangeOf(range);
   const label = RANGE_LABEL[range];
   const lineLabel = line === "all" ? "" : `${line}・`;
-  const showRenewal = s.perms.casesCreate && s.visibleCases.some((c) => c.milestones.certExpiry && daysUntil(c.milestones.certExpiry) >= 0 && daysUntil(c.milestones.certExpiry) <= s.settings.renewDays[0]);
-  const hasMain = !company || showRenewal || s.perms.financeAmounts;
+  // 證書到期是目前的存量，不隨期間變動；標示已建立續證案件的件數，與活動量的推進標記同一種寫法
+  const renewDays = s.settings.renewDays[0];
+  const expiring = cases.filter((c) => c.milestones.certExpiry && daysUntil(c.milestones.certExpiry) >= 0 && daysUntil(c.milestones.certExpiry) <= renewDays);
   // 進行中案件是目前的總數，不隨期間變動，與活動量分開放
   const inProgress = {
     label: company ? "進行中案件" : "我的進行中案件",
@@ -69,17 +70,15 @@ export function Dashboard() {
               ]}
             />
           )}
-          {(company || s.perms.financeAmounts) && (
-            <Segmented
-              value={range}
-              onChange={setRange}
-              items={[
-                { value: "week", label: "本週" },
-                { value: "month", label: "本月" },
-                { value: "year", label: "今年" },
-              ]}
-            />
-          )}
+          <Segmented
+            value={range}
+            onChange={setRange}
+            items={[
+              { value: "week", label: "本週" },
+              { value: "month", label: "本月" },
+              { value: "year", label: "今年" },
+            ]}
+          />
           {s.perms.casesCreate && (
             <Button variant="dark" icon={<Plus className="size-4" />} onClick={() => setCreating(true)}>
               新增案件
@@ -89,38 +88,43 @@ export function Dashboard() {
         </div>
       </div>
 
-      {company && (
-        <div className="mt-6 grid grid-cols-[minmax(0,1.35fr)_minmax(0,4fr)] gap-5">
-          <HeroStat {...inProgress} />
-          <MetricStrip
-            items={METRICS.map((m) => {
-              const now = cases.filter((c) => inRange(m.date(c), r));
-              return {
-                label: `${label}${m.name}`,
-                value: now.length,
-                advanced: now.filter((c) => STATUSES.indexOf(s.statusOf(c)) >= STATUSES.indexOf(m.reached)).length,
-                next: m.next,
-                onClick: now.length ? () => s.go({ page: "cases", filter: { ids: now.map((c) => c.id), label: `${lineLabel}${label}${m.name}` } }) : undefined,
-              };
-            })}
-          />
-        </div>
-      )}
+      <div className="mt-6 grid grid-cols-[minmax(0,1.35fr)_minmax(0,4fr)] gap-5">
+        <HeroStat {...inProgress} />
+        <MetricStrip
+          items={[
+            ...METRICS.map((m) => {
+            const now = cases.filter((c) => inRange(m.date(c), r));
+            return {
+              label: `${label}${m.name}`,
+              value: now.length,
+              advanced: now.filter((c) => STATUSES.indexOf(s.statusOf(c)) >= STATUSES.indexOf(m.reached)).length,
+              next: m.next,
+              onClick: now.length ? () => s.go({ page: "cases", filter: { ids: now.map((c) => c.id), label: `${lineLabel}${label}${m.name}` } }) : undefined,
+            };
+          }),
+            ...(s.perms.casesCreate
+              ? [
+                  {
+                    label: "證書到期",
+                    hint: `${renewDays} 天內到期的證書`,
+                    value: expiring.length,
+                    advanced: expiring.filter((c) => s.cases.some((x) => x.previousCase === c.id)).length,
+                    next: "建立續證",
+                    onClick: expiring.length ? () => s.go({ page: "cases", filter: { ids: expiring.map((c) => c.id), label: `${lineLabel}證書 ${renewDays} 天內到期` } }) : undefined,
+                  },
+                ]
+              : []),
+          ]}
+        />
+      </div>
 
-      <div className={cn("mt-5 grid items-start gap-5", hasMain && "grid-cols-[minmax(0,1fr)_340px]")}>
-        {hasMain && (
-          <div className="min-w-0 space-y-5">
-            {!company && (
-              <div className="max-w-[240px]">
-                <HeroStat {...inProgress} />
-              </div>
-            )}
-            {showRenewal && <RenewalRadar cases={s.visibleCases} />}
-            {s.perms.financeAmounts && <Finance cases={s.visibleCases} range={range} />}
-          </div>
-        )}
-        <div className={cn(hasMain && "sticky top-6")}>
-          <Todos compact={hasMain} />
+      <div className="mt-5 grid grid-cols-[minmax(0,1fr)_340px] items-start gap-5">
+        <div className="min-w-0 space-y-5">
+          <StatusBreakdown cases={cases} prefix={lineLabel} />
+          {s.perms.financeAmounts && <Finance cases={s.visibleCases} range={range} />}
+        </div>
+        <div className="sticky top-6">
+          <Todos compact />
         </div>
       </div>
       <NewCaseModal open={creating} onClose={() => setCreating(false)} />
@@ -129,7 +133,7 @@ export function Dashboard() {
 }
 
 // 本期活動量：不加框，靠留白與細分隔線區分；可點的項目滑過才出現底色
-function MetricStrip({ items }: { items: { label: string; value: number; advanced: number; next: string; onClick?: () => void }[] }) {
+function MetricStrip({ items }: { items: { label: string; hint?: string; value: number; advanced: number; next: string; onClick?: () => void }[] }) {
   return (
     <div className="grid" style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}>
       {items.map((m, i) => (
@@ -138,7 +142,8 @@ function MetricStrip({ items }: { items: { label: string; value: number; advance
           type="button"
           onClick={m.onClick}
           disabled={!m.onClick}
-          className={cn("relative flex flex-col justify-center rounded-lg px-5 py-[18px] text-left transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 disabled:cursor-default", m.onClick && "hover:bg-brand-100/60")}
+          title={m.hint}
+          className={cn("relative flex flex-col justify-center rounded-lg px-4 py-[18px] text-left transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 disabled:cursor-default", m.onClick && "hover:bg-brand-100/60")}
         >
           {i > 0 && <span aria-hidden className="absolute inset-y-5 left-0 w-px bg-ink-900/[.08]" />}
           <span className="block whitespace-nowrap text-[13px] font-medium text-ink-700">{m.label}</span>
@@ -146,7 +151,7 @@ function MetricStrip({ items }: { items: { label: string; value: number; advance
             {m.value}
           </motion.span>
           <span className={cn("mt-2 flex items-center gap-1 whitespace-nowrap text-[12px] tabular-nums", m.advanced ? "font-medium text-brand-700" : "text-ink-600")}>
-            {m.advanced > 0 && <TrendingUp className="size-3.5" />}
+            {m.advanced > 0 && <TrendingUp className="size-3.5 shrink-0" />}
             {m.advanced} 件已{m.next}
           </span>
         </button>
@@ -175,6 +180,59 @@ function HeroStat({ label, value, sub, period, added, onClick }: { label: string
         {sub}
       </span>
     </button>
+  );
+}
+
+// 案件狀態分布：只列目前有案件的狀態，依流程順序由淺到深；點狀態可看該批案件
+const mixHex = (from: number[], to: number[], t: number) => `rgb(${from.map((c, i) => Math.round(c + (to[i] - c) * t)).join(",")})`;
+
+function StatusBreakdown({ cases, prefix }: { cases: Case[]; prefix: string }) {
+  const s = useStore();
+  const rows = STATUSES.map((st) => ({ st, list: cases.filter((c) => s.statusOf(c) === st) })).filter((x) => x.list.length);
+  const colorOf = (i: number) => (rows.length > 1 ? mixHex([171, 212, 207], [21, 48, 45], i / (rows.length - 1)) : "#32716A");
+  return (
+    <Card
+      glass
+      pad={false}
+      title={
+        <span className="flex items-baseline gap-2">
+          案件狀態
+          <span className="text-[12.5px] font-normal text-ink-600">共 {cases.length} 件</span>
+        </span>
+      }
+    >
+      {rows.length === 0 ? (
+        <Empty icon={<CircleCheck />} title="目前沒有案件" />
+      ) : (
+        <div className="glass-tile mx-2 mb-2 rounded-lg p-3">
+          <div className="flex h-5 gap-0.5 overflow-hidden rounded-md">
+            {rows.map((x, i) => (
+              <motion.div key={x.st} title={`${x.st} ${x.list.length} 件`} className="h-full" style={{ background: colorOf(i) }} initial={{ width: 0 }} animate={{ width: `${(x.list.length / cases.length) * 100}%` }} transition={{ duration: 0.5, ease }} />
+            ))}
+          </div>
+          <div className="mt-2 grid gap-1" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(104px, 1fr))" }}>
+            {rows.map((x, i) => (
+              <button
+                key={x.st}
+                type="button"
+                onClick={() => s.go({ page: "cases", filter: { ids: x.list.map((c) => c.id), label: `${prefix}${x.st}` } })}
+                className="rounded-md px-1.5 py-1.5 text-left transition-colors duration-150 hover:bg-brand-100/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+              >
+                <span className="flex items-center gap-1.5 whitespace-nowrap text-[12px] text-ink-600">
+                  <span aria-hidden className="size-2 shrink-0 rounded-full" style={{ background: colorOf(i) }} />
+                  {x.st}
+                </span>
+                <span className="mt-1 flex items-baseline gap-1">
+                  <span className="font-num text-[20px] font-semibold leading-none text-ink-900 tabular-nums">{x.list.length}</span>
+                  <span className="text-[12px] text-ink-600">件</span>
+                  <span className="ml-1 text-[12px] tabular-nums text-ink-600">{Math.round((x.list.length / cases.length) * 100)}%</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </Card>
   );
 }
 
@@ -227,57 +285,6 @@ function Todos({ compact }: { compact?: boolean }) {
           {n.status === "未讀" && <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-brand-500" />}
         </motion.button>
       ))}
-      </div>
-    </Card>
-  );
-}
-
-// 續證雷達：續證準備天數內到期的證書，依到期日排序
-function RenewalRadar({ cases }: { cases: Case[] }) {
-  const s = useStore();
-  const days = s.settings.renewDays[0];
-  const list = cases
-    .filter((c) => c.milestones.certExpiry && daysUntil(c.milestones.certExpiry) >= 0 && daysUntil(c.milestones.certExpiry) <= days)
-    .sort((a, b) => a.milestones.certExpiry!.localeCompare(b.milestones.certExpiry!));
-  if (!list.length) return null;
-  return (
-    <Card
-      glass
-      title={
-        <span className="flex items-baseline gap-2">
-          證書到期
-          <span className="text-[12.5px] font-normal text-ink-600">
-            {days} 天內 {list.length} 件
-          </span>
-        </span>
-      }
-      pad={false}
-    >
-      <div className="space-y-1.5 px-2 pb-2">
-      {list.map((c) => {
-        const renewal = s.cases.find((x) => x.previousCase === c.id);
-        const owner = s.memberOf(c.owner);
-        return (
-          <button key={c.id} onClick={() => s.go({ page: "case", id: c.id })} className="glass-tile flex w-full items-center gap-4 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-brand-100/70">
-            <span className="w-24 shrink-0 text-[12.5px] tabular-nums text-ink-700">{fmtDate(c.milestones.certExpiry)}</span>
-            <span className={cn("w-20 shrink-0 text-[12.5px] tabular-nums", daysUntil(c.milestones.certExpiry!) <= 30 ? "font-medium text-amber-700" : "text-ink-600")}>{daysUntil(c.milestones.certExpiry!)} 天後</span>
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-[13px] font-medium text-ink-900">
-                {s.customerOf(c).short}
-                {c.site ? ` ${c.site}` : ""} {c.item}
-              </span>
-              <span className="block truncate font-mono text-[11px] text-ink-600">{c.id}</span>
-            </span>
-            <span className="flex w-28 shrink-0 items-center gap-1.5 text-[12px] text-ink-600">
-              <Avatar m={owner} size={20} />
-              <span className="truncate">{owner?.nickname ?? owner?.name}</span>
-            </span>
-            <span className="w-32 shrink-0 text-right">
-              {renewal ? <Badge tone="outline">已建立續證案件</Badge> : c.noRenew ? <Badge tone="gray">本次不續證</Badge> : <span className="text-[12px] text-ink-600">尚未建立續證案件</span>}
-            </span>
-          </button>
-        );
-      })}
       </div>
     </Card>
   );
