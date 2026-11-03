@@ -330,7 +330,7 @@ function AddonAuth({ onDone }: { onDone: () => void }) {
         <p className="mt-1 text-[12.5px] text-[#5f6368]">第一次使用前需要授權一次</p>
       </div>
       <ul className="space-y-2 rounded-xl bg-[#F8FAFD] p-3.5 text-[12.5px] text-[#3c4043]">
-        {["確認你的 Google 帳號是恆永顧問系統的成員", "開啟信件時讀取寄件者、主旨與時間，建議所屬案件", "由你確認後才會歸檔；歸檔後整串信件內容會存入系統，案件成員都看得到"].map((x) => (
+        {["確認你的 Google 帳號是恆永顧問系統的成員", "開啟信件時讀取寄件者、主旨與時間，建議所屬案件", "由你確認後才會歸檔；歸檔時比對關鍵字，不保存信件內文"].map((x) => (
           <li key={x} className="flex items-start gap-2">
             <Check className="mt-0.5 size-3.5 shrink-0 text-brand-600" />
             {x}
@@ -496,7 +496,7 @@ function Panel({ t }: { t: EmailThread }) {
             <Button variant="brand" className="w-full" icon={<Check className="size-4" />} onClick={() => primary && link(primary.id, "確認系統建議並歸檔")}>
               確認歸檔
             </Button>
-            <p className="text-center text-[11.5px] text-ink-500">歸檔後，案件成員都看得到這串信的內容</p>
+            <p className="text-center text-[11.5px] text-ink-500">歸檔後，案件成員看得到主旨、往來對象與關鍵字，看不到內文</p>
             <div className="flex gap-2">
               <Button className="flex-1" onClick={() => setChanging(true)}>
                 改選

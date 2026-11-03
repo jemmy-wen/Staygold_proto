@@ -208,7 +208,7 @@ export type EmailThread = {
   date: string;
   time: string;
   count: number;
-  earlier?: ThreadMessage[]; // 由舊到新，歸檔後案件成員可讀整串內容
+  earlier?: ThreadMessage[]; // 由舊到新
   unread?: boolean;
   hasAttachment?: string;
   state: "suggested" | "linked" | "ignored" | "none";

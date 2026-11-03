@@ -126,8 +126,6 @@ function useStoreValue() {
   const [userId, setUserId] = useState<string>(() => param("as") ?? "exec1");
   const [inviteId, setInviteId] = useState<string | null>(() => param("member"));
   const [deniedEmail, setDeniedEmail] = useState<string | null>(() => param("email"));
-  // 給客戶對焦用的方案切換，放在 store 讓換案件時不會跳回預設
-  const [mailView, setMailView] = useState<"full" | "log">(() => (param("mailView") === "log" ? "log" : "full"));
   const [route, setRoute] = useState<Route>(() => {
     const page = param("page");
     if (!page) return { page: "dashboard" };
@@ -391,8 +389,6 @@ function useStoreValue() {
     route,
     inviteId,
     deniedEmail,
-    mailView,
-    setMailView,
     toasts,
     notifs,
     myNotifs,

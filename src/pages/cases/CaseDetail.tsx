@@ -4,7 +4,7 @@ import { useStore } from "../../lib/store";
 import { createRenewal } from "../../lib/caseOps";
 import { STATUSES, STATUS_PHASE, cn, nowStamp } from "../../lib/utils";
 import { motion } from "framer-motion";
-import { Avatar, Badge, Button, Empty, MenuItem, Modal, Popover, Segmented, Select, StatusPill, Tabs } from "../../components/ui";
+import { Avatar, Badge, Button, Empty, MenuItem, Modal, Popover, Select, StatusPill, Tabs } from "../../components/ui";
 import { Overview } from "./tabs/Overview";
 import { ProgressPanel } from "./ProgressPanel";
 import { EmailTab } from "./tabs/EmailTab";
@@ -138,7 +138,7 @@ export function CaseDetail({ id, tab: initial }: { id: string; tab?: string }) {
         </div>
       </div>
 
-      <div className="relative mt-5">
+      <div className="mt-5">
         <Tabs
           className="px-8"
           value={current}
@@ -152,12 +152,6 @@ export function CaseDetail({ id, tab: initial }: { id: string; tab?: string }) {
             { value: "customer", label: <><Building2 />客戶</> },
           ]}
         />
-        {/* 給客戶比較方案用：浮在 tab 列右端，不佔排版空間 */}
-        {current === "email" && (
-          <div className="absolute right-8 top-1/2 -translate-y-1/2">
-            <Segmented size="sm" value={s.mailView} onChange={s.setMailView} items={[{ value: "full", label: "完整內文" }, { value: "log", label: "關鍵字" }]} />
-          </div>
-        )}
       </div>
       <motion.div key={current} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }} className="px-8 py-6">
         {current === "overview" && <Overview c={c} />}

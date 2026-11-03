@@ -3,18 +3,15 @@ import { ArrowDownLeft, ArrowUpRight, Check, ChevronDown, CircleAlert, EyeOff, M
 import { useStore } from "../../../lib/store";
 import type { Case, EmailThread, ThreadMessage } from "../../../lib/types";
 import { cn, daysSince, fmtDate, fmtShort, mailKeywords, nowStamp } from "../../../lib/utils";
-import { Avatar, Badge, Button, Empty, OptionList, Popover, SearchInput } from "../../../components/ui";
+import { Avatar, Button, Empty, OptionList, Popover, SearchInput } from "../../../components/ui";
 
-const threadMessages = (t: EmailThread, ownerName: string): (ThreadMessage & { signature?: string[] })[] => [...(t.earlier ?? []), { fromName: t.fromName, fromEmail: t.fromEmail, to: ownerName, date: t.date, time: t.time, body: t.body, signature: t.signature, hasAttachment: t.hasAttachment }];
+const threadMessages = (t: EmailThread, ownerName: string): ThreadMessage[] => [...(t.earlier ?? []), { fromName: t.fromName, fromEmail: t.fromEmail, to: ownerName, date: t.date, time: t.time, body: t.body, hasAttachment: t.hasAttachment }];
 
-// Email 分頁有兩個方案給恆永選：完整內文是左邊選信件串、右邊讀整串內容；關鍵字方案見 ContactLog。建議關聯都收在上方一條
+// 建議關聯收在上方一條；已歸檔的信不顯示內文，用關鍵字找出信件，再回原信箱看（見 ContactLog）
 export function EmailTab({ c }: { c: Case }) {
   const s = useStore();
   const suggested = s.threads.filter((t) => t.state === "suggested" && t.suggestedCaseIds?.includes(c.id));
   const linked = s.threads.filter((t) => t.state === "linked" && t.caseId === c.id).sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time));
-  const [openId, setOpenId] = useState<string | null>(null);
-  const open = linked.find((t) => t.id === openId) ?? linked[0];
-  const total = linked.reduce((n, t) => n + t.count, 0);
 
   return (
     <div className="space-y-4">
@@ -23,40 +20,8 @@ export function EmailTab({ c }: { c: Case }) {
         <div className="glass-card rounded-xl">
           <Empty icon={<Mail />} title="還沒有關聯的信件" />
         </div>
-      ) : s.mailView === "log" ? (
-        <ContactLog c={c} linked={linked} />
       ) : (
-        <div className="grid grid-cols-[320px_minmax(0,1fr)] items-start gap-4">
-          <aside className="glass-card sticky top-4 overflow-hidden rounded-xl">
-            <p className="border-b border-ink-100 px-4 py-3 text-[13px] font-semibold text-ink-900">
-              通聯紀錄
-              <span className="ml-2 text-[12px] font-normal text-ink-500">
-                {linked.length} 串・{total} 封
-              </span>
-            </p>
-            <div className="max-h-[calc(100vh-180px)] overflow-y-auto">
-              {linked.map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => setOpenId(t.id)}
-                  className={cn("block w-full border-b border-ink-100 px-4 py-3 text-left transition-colors last:border-b-0", t.id === open?.id ? "bg-brand-50/60" : "hover:bg-ink-25")}
-                >
-                  <span className="flex items-center gap-2 text-[12px] text-ink-500">
-                    <span className="min-w-0 flex-1 truncate">{t.fromName}</span>
-                    <span className="shrink-0 tabular-nums">{fmtShort(t.date)}</span>
-                  </span>
-                  <span className="mt-1 flex items-start gap-1.5 text-[13px] font-medium leading-snug text-ink-900">
-                    <span className="min-w-0 flex-1">{t.subject}</span>
-                    {t.hasAttachment && <Paperclip className="mt-0.5 size-3.5 shrink-0 text-ink-400" />}
-                    {t.count > 1 && <span className="shrink-0 rounded bg-ink-100 px-1.5 text-[11px] font-normal text-ink-500">{t.count}</span>}
-                  </span>
-                  <span className="mt-1 line-clamp-2 text-[12px] leading-relaxed text-ink-500">{t.snippet}</span>
-                </button>
-              ))}
-            </div>
-          </aside>
-          {open && <ThreadReader key={open.id} t={open} c={c} />}
-        </div>
+        <ContactLog c={c} linked={linked} />
       )}
     </div>
   );
@@ -64,7 +29,7 @@ export function EmailTab({ c }: { c: Case }) {
 
 type LogFilter = { kind: "keyword" | "contact" | "search"; value: string } | null;
 
-// 關鍵字方案：不顯示內文，用搜尋或關鍵字找出出現在哪幾封信，再依「在誰的信箱」回去翻原信
+// 不顯示內文，用搜尋或關鍵字找出出現在哪幾封信，再依「在誰的信箱」回去翻原信
 function ContactLog({ c, linked }: { c: Case; linked: EmailThread[] }) {
   const s = useStore();
   const [picked, setPicked] = useState<LogFilter>(null);
@@ -363,67 +328,5 @@ function ThreadActions({ t, c }: { t: EmailThread; c: Case }) {
         移除
       </Button>
     </div>
-  );
-}
-
-// 整串信由舊到新完整列出，讓接手的人不用翻別人的信箱就能看懂來龍去脈
-function ThreadReader({ t, c }: { t: EmailThread; c: Case }) {
-  const s = useStore();
-  const owner = s.memberOf(t.mailbox);
-  const by = s.memberOf(t.linkedBy);
-  const messages = threadMessages(t, owner?.name ?? "");
-  return (
-    <section className="glass-card min-w-0 rounded-xl">
-      <header className="flex items-start justify-between gap-4 border-b border-ink-100 px-6 py-4">
-        <div className="min-w-0">
-          <h3 className="text-[16px] font-semibold leading-snug text-ink-900">{t.subject}</h3>
-          <p className="mt-1 text-[12px] text-ink-500">
-            {messages.length} 封・來自 {owner?.nickname ?? owner?.name} 的信箱・{by?.nickname ?? by?.name} 於 {t.linkedAt} 歸檔
-          </p>
-        </div>
-        <ThreadActions t={t} c={c} />
-      </header>
-      <div className="divide-y divide-ink-100">
-        {messages.map((m, i) => {
-          const staff = s.members.find((x) => x.email === m.fromEmail);
-          return (
-            <article key={i} className="px-6 py-5">
-              <div className="flex items-start gap-3">
-                <Avatar m={staff ?? { name: m.fromName, color: "#9CA5A3" }} size={32} />
-                <div className="min-w-0 flex-1">
-                  <p className="flex flex-wrap items-center gap-x-2 text-[13px]">
-                    <span className="font-medium text-ink-900">{m.fromName}</span>
-                    {staff && <Badge tone="outline">恆永</Badge>}
-                    <span className="text-[12px] text-ink-400">{m.fromEmail}</span>
-                  </p>
-                  <p className="mt-0.5 text-[12px] text-ink-500">寄給 {m.to}</p>
-                </div>
-                <span className="shrink-0 text-[12px] tabular-nums text-ink-400">
-                  {fmtDate(m.date)} {m.time}
-                </span>
-              </div>
-              <div className="ml-11 mt-3 space-y-2 text-[13.5px] leading-relaxed text-ink-800">
-                {m.body.map((p, j) => (
-                  <p key={j}>{p}</p>
-                ))}
-                {m.signature && (
-                  <div className="pt-2 text-[12px] leading-relaxed text-ink-500">
-                    {m.signature.map((l) => (
-                      <p key={l}>{l}</p>
-                    ))}
-                  </div>
-                )}
-                {m.hasAttachment && (
-                  <p className="!mt-3 inline-flex items-center gap-1.5 rounded-lg border border-ink-200 px-2.5 py-1.5 text-[12.5px] text-ink-700">
-                    <Paperclip className="size-3.5 text-ink-400" />
-                    {m.hasAttachment}
-                  </p>
-                )}
-              </div>
-            </article>
-          );
-        })}
-      </div>
-    </section>
   );
 }
