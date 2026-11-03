@@ -88,15 +88,22 @@ export function Login() {
   const [stage, setStage] = useState<"start" | "google">("start");
   const m = s.memberOf(DEMO_LOGIN);
   const accounts: GoogleAccount[] = m ? [{ email: m.email, name: m.name, m }] : [];
+  const admin = s.members.find((x) => x.isOwner);
   return (
     <AuthFrame>
       {stage === "start" ? (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease }} className="w-[380px]">
-          <h2 className="text-[24px] font-semibold tracking-tight text-ink-900">登入</h2>
-          <p className="mt-2 text-[13px] text-ink-500">請使用受邀加入的 Google 帳號</p>
+          <h2 className="text-[24px] font-semibold tracking-tight text-ink-900">登入恆永顧問內部系統</h2>
+          <p className="mt-2 text-[13px] text-ink-600">請使用受邀加入的 Google 帳號</p>
           <Button variant="default" size="lg" className="mt-8 w-full" icon={<GoogleMark />} onClick={() => setStage("google")}>
             使用 Google 帳號登入
           </Button>
+          <p className="mt-5 text-center text-[13px] text-ink-600">
+            還沒有帳號？
+            <a href={`mailto:${admin?.email ?? ""}`} className="ml-1 font-medium text-brand-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300">
+              聯絡空間管理員
+            </a>
+          </p>
         </motion.div>
       ) : (
         <GoogleChooser accounts={accounts} onPick={() => s.login(DEMO_LOGIN)} onOther={() => s.deny(OUTSIDER_EMAIL)} />
