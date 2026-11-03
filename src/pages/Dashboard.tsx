@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 import { ArrowRight, CircleCheck, Plus, TrendingUp } from "lucide-react";
 import { useStore } from "../lib/store";
 import type { Case, CaseStatus } from "../lib/types";
-import { ACTIVE_STATUSES, AGING, STATUSES, TODAY, agingBucket, cn, contractTotal, daysUntil, fmtDate, inRange, lineOf, money, openParam, periodState, weekRange, weekday, withTax } from "../lib/utils";
+import { ACTIVE_STATUSES, AGING, STATUSES, STATUS_PHASE, TODAY, agingBucket, cn, contractTotal, daysUntil, fmtDate, inRange, lineOf, money, openParam, periodState, weekRange, weekday, withTax } from "../lib/utils";
 import { Button, Card, Empty, Segmented, StatGroup, ease } from "../components/ui";
 import { NotifBell, openNotif } from "../components/layout";
 import { NotifIcon, NotifKind } from "./Notifications";
@@ -183,13 +184,47 @@ function HeroStat({ label, value, sub, period, added, onClick }: { label: string
   );
 }
 
-// 案件狀態分布：只列目前有案件的狀態，依流程順序由淺到深；點狀態可看該批案件
+// 案件狀態分布：數字只列大階段；比例條依流程由淺到深，一段深淺是一個狀態，細項滑過才看得到
 const mixHex = (from: number[], to: number[], t: number) => `rgb(${from.map((c, i) => Math.round(c + (to[i] - c) * t)).join(",")})`;
 
 function StatusBreakdown({ cases, prefix }: { cases: Case[]; prefix: string }) {
   const s = useStore();
   const rows = STATUSES.map((st) => ({ st, list: cases.filter((c) => s.statusOf(c) === st) })).filter((x) => x.list.length);
-  const colorOf = (i: number) => (rows.length > 1 ? mixHex([171, 212, 207], [21, 48, 45], i / (rows.length - 1)) : "#32716A");
+  const colorOf = (st: string) => {
+    const i = rows.findIndex((x) => x.st === st);
+    return rows.length > 1 ? mixHex([171, 212, 207], [21, 48, 45], i / (rows.length - 1)) : "#32716A";
+  };
+  const phases = [...new Set(rows.map((x) => STATUS_PHASE[x.st]))].map((phase) => {
+    const own = rows.filter((x) => STATUS_PHASE[x.st] === phase);
+    return { phase, rows: own, list: own.flatMap((x) => x.list) };
+  });
+  const [hover, setHover] = useState<{ phase: string; rect: DOMRect } | null>(null);
+  const timer = useRef<number | undefined>(undefined);
+  const show = (phase: string, el: HTMLElement) => {
+    window.clearTimeout(timer.current);
+    setHover({ phase, rect: el.getBoundingClientRect() });
+  };
+  // 留一點時間讓滑鼠移到卡片上
+  const hide = () => {
+    window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => setHover(null), 120);
+  };
+  useEffect(() => {
+    if (!hover) return;
+    const close = () => setHover(null);
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && close();
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("keydown", esc);
+    return () => {
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("keydown", esc);
+    };
+  }, [hover]);
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+  const go = (ids: string[], label: string) => s.go({ page: "cases", filter: { ids, label: `${prefix}${label}` } });
+  const active = phases.find((p) => p.phase === hover?.phase);
+  const pct = (n: number) => Math.round((n / cases.length) * 100);
+
   return (
     <Card
       glass
@@ -205,33 +240,75 @@ function StatusBreakdown({ cases, prefix }: { cases: Case[]; prefix: string }) {
         <Empty icon={<CircleCheck />} title="目前沒有案件" />
       ) : (
         <div className="glass-tile mx-2 mb-2 rounded-lg p-3">
-          <div className="flex h-5 gap-0.5 overflow-hidden rounded-md">
-            {rows.map((x, i) => (
-              <motion.div key={x.st} title={`${x.st} ${x.list.length} 件`} className="h-full" style={{ background: colorOf(i) }} initial={{ width: 0 }} animate={{ width: `${(x.list.length / cases.length) * 100}%` }} transition={{ duration: 0.5, ease }} />
-            ))}
-          </div>
-          <div className="mt-2 grid gap-1" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(104px, 1fr))" }}>
-            {rows.map((x, i) => (
-              <button
-                key={x.st}
-                type="button"
-                onClick={() => s.go({ page: "cases", filter: { ids: x.list.map((c) => c.id), label: `${prefix}${x.st}` } })}
-                className="rounded-md px-1.5 py-1.5 text-left transition-colors duration-150 hover:bg-brand-100/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+          <motion.div className="flex h-5 origin-left gap-1" initial={{ scaleX: 0 }} animate={{ scaleX: 1 }} transition={{ duration: 0.5, ease }}>
+            {phases.map((p) => (
+              <div
+                key={p.phase}
+                onMouseEnter={(e) => show(p.phase, e.currentTarget)}
+                onMouseLeave={hide}
+                className={cn("flex h-full min-w-0 gap-px overflow-hidden rounded-md transition-opacity duration-150", hover && hover.phase !== p.phase && "opacity-40")}
+                style={{ flex: `${p.list.length} 1 0` }}
               >
-                <span className="flex items-center gap-1.5 whitespace-nowrap text-[12px] text-ink-600">
-                  <span aria-hidden className="size-2 shrink-0 rounded-full" style={{ background: colorOf(i) }} />
-                  {x.st}
+                {p.rows.map((x) => (
+                  <div key={x.st} className="h-full" style={{ flex: `${x.list.length} 1 0`, background: colorOf(x.st) }} />
+                ))}
+              </div>
+            ))}
+          </motion.div>
+          <div className="mt-2 grid gap-1" style={{ gridTemplateColumns: `repeat(${phases.length}, minmax(0, 1fr))` }}>
+            {phases.map((p) => (
+              <button
+                key={p.phase}
+                type="button"
+                aria-label={`${p.phase} ${p.list.length} 件：${p.rows.map((x) => `${x.st} ${x.list.length} 件`).join("、")}`}
+                onClick={() => go(p.list.map((c) => c.id), p.phase)}
+                onMouseEnter={(e) => show(p.phase, e.currentTarget)}
+                onMouseLeave={hide}
+                onFocus={(e) => show(p.phase, e.currentTarget)}
+                onBlur={hide}
+                className="min-w-0 rounded-md px-1.5 py-1.5 text-left transition-colors duration-150 hover:bg-brand-100/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+              >
+                <span className="flex items-center gap-1.5 text-[12px] text-ink-600">
+                  <span aria-hidden className="size-2 shrink-0 rounded-full" style={{ background: colorOf(p.rows[Math.floor((p.rows.length - 1) / 2)].st) }} />
+                  <span className="truncate">{p.phase}</span>
                 </span>
                 <span className="mt-1 flex items-baseline gap-1">
-                  <span className="font-num text-[20px] font-semibold leading-none text-ink-900 tabular-nums">{x.list.length}</span>
+                  <span className="font-num text-[20px] font-semibold leading-none text-ink-900 tabular-nums">{p.list.length}</span>
                   <span className="text-[12px] text-ink-600">件</span>
-                  <span className="ml-1 text-[12px] tabular-nums text-ink-600">{Math.round((x.list.length / cases.length) * 100)}%</span>
                 </span>
               </button>
             ))}
           </div>
         </div>
       )}
+      {active &&
+        hover &&
+        createPortal(
+          <motion.div
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.12, ease }}
+            onMouseEnter={() => window.clearTimeout(timer.current)}
+            onMouseLeave={hide}
+            className="glass-panel fixed z-[70] w-[220px] rounded-xl p-1.5"
+            style={{ left: Math.max(8, Math.min(hover.rect.left, window.innerWidth - 228)), top: hover.rect.bottom + 6 }}
+          >
+            <p className="flex items-baseline justify-between gap-2 px-2 pb-1.5 pt-1 text-[12.5px] font-semibold text-ink-900">
+              {active.phase}
+              <span className="font-normal tabular-nums text-ink-600">
+                {active.list.length} 件・{pct(active.list.length)}%
+              </span>
+            </p>
+            {active.rows.map((x) => (
+              <button key={x.st} type="button" onClick={() => go(x.list.map((c) => c.id), x.st)} className="flex h-8 w-full items-center gap-2 rounded-lg px-2 text-left text-[12.5px] text-ink-800 transition-colors duration-100 hover:bg-ink-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">
+                <span aria-hidden className="size-2 shrink-0 rounded-full" style={{ background: colorOf(x.st) }} />
+                <span className="flex-1 truncate">{x.st}</span>
+                <span className="font-num font-semibold tabular-nums text-ink-900">{x.list.length}</span>
+              </button>
+            ))}
+          </motion.div>,
+          document.body,
+        )}
     </Card>
   );
 }
